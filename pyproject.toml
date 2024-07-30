@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "fisher-scoring"
+version = "0.1.0"
+description = "Fisher Scoring Logistic Regression Suite"
+authors = ["xRiskLab <contact@xrisklab.ai>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "fisher_scoring", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+numpy = "^2.0.1"
+pandas = "^2.2.2"
+scikit-learn = "^1.5.1"
+black = "^24.4.2"
+isort = "^5.13.2"
+pylint = "^3.2.6"
+pytest = "^8.3.2"
+rich = "^13.7.1"
+fixit = "^2.1.0"
+pytest-mock = "^3.14.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
