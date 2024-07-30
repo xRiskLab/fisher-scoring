@@ -1,6 +1,6 @@
 # Fisher Scoring Logistic Regression Suite
 
-Author: xRiskLab (deburky)  
+Author: xRiskLab
 GitHub: [xRiskLab](https://github.com/xRiskLab)  
 Beta Version: 0.1  
 2024 MIT License  
@@ -63,8 +63,6 @@ The `FisherScoringFocalRegression` class implements the Fisher Scoring algorithm
 - `verbose`: Enable verbose output.
 
 The algorithm is experimental and may require further testing and optimization.
-
-## Installation
 
 ## Installation
 
