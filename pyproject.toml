@@ -1,10 +1,23 @@
 [tool.poetry]
 name = "fisher-scoring"
 version = "0.1.0"
-description = "Fisher Scoring Logistic Regression Suite"
-authors = ["xRiskLab <contact@xrisklab.ai>"]
+description = "A Python implementation of the Fisher Scoring algorithm for logistic regression, multinomial regression, and focal loss regression."
+authors = ["xRiskLab <your-email@example.com>"]
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/xRiskLab/fisher-scoring"
+repository = "https://github.com/xRiskLab/fisher-scoring"
+keywords = ["fisher scoring", "logistic regression", "focal loss", "multinomial regression"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
 packages = [
     { include = "fisher_scoring", from = "src" }
 ]
