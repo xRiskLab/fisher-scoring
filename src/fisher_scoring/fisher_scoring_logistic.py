@@ -354,7 +354,6 @@ class FisherScoringLogisticRegression(
             title="Fisher Scoring Logistic Regression Summary"
         )
 
-        # style = "blue1"
         table.add_column(
             "Parameter",
             justify="right",
