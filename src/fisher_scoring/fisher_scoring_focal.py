@@ -26,9 +26,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class FisherScoringFocalRegression(
-    BaseEstimator, ClassifierMixin
-):
+class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
     """
     Fisher Scoring Focal Loss Regression class.
     """
@@ -52,9 +50,7 @@ class FisherScoringFocalRegression(
         self.bias: Optional[np.ndarray] = None
         self.loss_history: List[float] = []
         self.beta_history: List[np.ndarray] = []
-        self.information_matrix: Dict[
-            str, List[np.ndarray]
-        ] = {
+        self.information_matrix: Dict[str, List[np.ndarray]] = {
             "iteration": [],
             "information": [],
         }
@@ -70,9 +66,7 @@ class FisherScoringFocalRegression(
         return np.clip(p, 1e-10, 1 - 1e-10)
 
     @staticmethod
-    def safe_log(
-        x: np.ndarray, minval: float = 1e-5
-    ) -> np.ndarray:
+    def safe_log(x: np.ndarray, minval: float = 1e-5) -> np.ndarray:
         """
         Compute the safe log to prevent log(0).
         """
@@ -94,9 +88,7 @@ class FisherScoringFocalRegression(
         pt[mask_neg] = pt[mask_neg] ** gamma
         return pt
 
-    def compute_loss(
-        self, y: np.ndarray, p: np.ndarray
-    ) -> float:
+    def compute_loss(self, y: np.ndarray, p: np.ndarray) -> float:
         """
         Compute the focal loss for logistic regression.
         """
@@ -114,14 +106,10 @@ class FisherScoringFocalRegression(
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print(
-                "WARNING: Singular matrix. Using pseudo-inverse."
-            )
+            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
-    def fit(
-        self, X: np.ndarray, y: np.ndarray
-    ) -> "FisherScoringFocalRegression":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "FisherScoringFocalRegression":
         """
         Fit the focal logistic regression model using Fisher scoring.
         """
@@ -144,9 +132,7 @@ class FisherScoringFocalRegression(
         for iteration in range(self.max_iter):
             z = X @ self.beta
             p = self.logistic_function(z)
-            pt = self.generate_focal_parameter(
-                y, p, self.gamma
-            )
+            pt = self.generate_focal_parameter(y, p, self.gamma)
             focal_p = p * pt
 
             score = X.T @ ((y - p) * pt)
@@ -164,43 +150,24 @@ class FisherScoringFocalRegression(
             if self.verbose:
                 loss = self.compute_loss(y, p) / X.shape[0]
                 if iteration == 0:
-                    print(
-                        "Starting Fisher Scoring Iterations..."
-                    )
-                print(
-                    f"Iteration: {iteration + 1}, Focal Loss: {focal_loss:.4f}"
-                )
+                    print("Starting Fisher Scoring Iterations...")
+                print(f"Iteration: {iteration + 1}, Focal Loss: {focal_loss:.4f}")
 
             if self.information == "expected":
-                beta_new = (
-                    self.beta
-                    + self.invert_matrix(expected_I) @ score
-                )
+                beta_new = self.beta + self.invert_matrix(expected_I) @ score
             elif self.information == "observed":
-                beta_new = (
-                    self.beta
-                    + self.invert_matrix(observed_I) @ score
-                )
+                beta_new = self.beta + self.invert_matrix(observed_I) @ score
             else:
-                raise ValueError(
-                    "Information must be 'expected' or 'observed'"
-                )
-            if (
-                np.linalg.norm(beta_new - self.beta)
-                < self.epsilon
-            ):
-                print(
-                    f"Convergence reached after {iteration + 1} iterations."
-                )
+                raise ValueError("Information must be 'expected' or 'observed'")
+            if np.linalg.norm(beta_new - self.beta) < self.epsilon:
+                print(f"Convergence reached after {iteration + 1} iterations.")
                 self.beta = beta_new
                 break
 
             self.beta = beta_new
             self.beta_history.append(self.beta.copy())
             if iteration == self.max_iter - 1:
-                print(
-                    "Maximum iterations reached without convergence."
-                )
+                print("Maximum iterations reached without convergence.")
         self.is_fitted_ = True
         return self
 
@@ -217,9 +184,7 @@ class FisherScoringFocalRegression(
         X = np.array(X)
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
-        proba_class_1 = self.logistic_function(
-            X @ self.beta
-        )
+        proba_class_1 = self.logistic_function(X @ self.beta)
         return np.hstack([1 - proba_class_1, proba_class_1])
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -229,9 +194,7 @@ class FisherScoringFocalRegression(
         probas = self.predict_proba(X)
         return (probas[:, 1] > 0.5).astype(int)
 
-    def get_params(
-        self, deep: bool = True
-    ) -> Dict[str, Union[float, int, str, bool]]:
+    def get_params(self, deep: bool = True) -> Dict[str, Union[float, int, str, bool]]:
         return {
             "gamma": self.gamma,
             "epsilon": self.epsilon,

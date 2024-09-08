@@ -83,6 +83,9 @@ pip install -r requirements.txt
 
 ## Change Log
 
+- **v0.1.4**
+  - Updated log likelihood for Multinomial Regression and minor changes to Logistic Regression for integration with scikit-learn.
+
 - **v0.1.3**
   - Added coefficients, standard errors, p-values, and confidence intervals for Multinomial Regression.
 

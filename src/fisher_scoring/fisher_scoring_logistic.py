@@ -73,9 +73,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class FisherScoringLogisticRegression(
-    BaseEstimator, ClassifierMixin
-):
+class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
     """
     Fisher Scoring Logistic Regression class.
     """
@@ -96,9 +94,7 @@ class FisherScoringLogisticRegression(
         self.significance = significance
         self.bias: Optional[float] = None
         self.beta: Optional[np.ndarray] = None
-        self.information_matrix: Dict[
-            str, List[np.ndarray]
-        ] = {
+        self.information_matrix: Dict[str, List[np.ndarray]] = {
             "iteration": [],
             "information": [],
         }
@@ -138,9 +134,7 @@ class FisherScoringLogisticRegression(
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print(
-                "WARNING: Singular matrix. Using pseudo-inverse."
-            )
+            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
     def fit(
@@ -158,6 +152,8 @@ class FisherScoringLogisticRegression(
         X = np.array(X)
         y = np.array(y).reshape(-1, 1)
 
+        self.classes_ = np.unique(y)
+
         # Initialize bias term if use_bias is True
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
@@ -171,25 +167,17 @@ class FisherScoringLogisticRegression(
 
             # Compute Score and Information
             score_vector = (y - p) * X
-            score = np.sum(score_vector, axis=0).reshape(
-                -1, 1
-            )
+            score = np.sum(score_vector, axis=0).reshape(-1, 1)
             expected_I = X.T @ W @ X
             observed_I = score_vector.T @ score_vector
 
             self.information_matrix["iteration"].append(iteration)  # type: ignore
             if self.information == "expected":
-                self.information_matrix[
-                    "information"
-                ].append(expected_I)
+                self.information_matrix["information"].append(expected_I)
             elif self.information == "observed":
-                self.information_matrix[
-                    "information"
-                ].append(observed_I)
+                self.information_matrix["information"].append(observed_I)
             else:
-                raise ValueError(
-                    "Information must be 'expected' or 'observed'"
-                )
+                raise ValueError("Information must be 'expected' or 'observed'")
 
             loss = self.compute_loss(y, p)
             log_loss = -loss / X.shape[0]
@@ -199,43 +187,25 @@ class FisherScoringLogisticRegression(
             if self.verbose:
                 loss = self.compute_loss(y, p) / X.shape[0]
                 if iteration == 0:
-                    print(
-                        "Starting Fisher Scoring Iterations..."
-                    )
-                print(
-                    f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}"
-                )
+                    print("Starting Fisher Scoring Iterations...")
+                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
 
             if self.information == "expected":
-                beta_new = (
-                    self.beta
-                    + self.invert_matrix(expected_I) @ score
-                )
+                beta_new = self.beta + self.invert_matrix(expected_I) @ score
             elif self.information == "observed":
-                beta_new = (
-                    self.beta
-                    + self.invert_matrix(observed_I) @ score
-                )
+                beta_new = self.beta + self.invert_matrix(observed_I) @ score
             else:
-                raise ValueError(
-                    "Information must be 'expected' or 'observed'"
-                )
-            if (
-                np.linalg.norm(beta_new - self.beta)
-                < self.epsilon
-            ):
-                print(
-                    f"Convergence reached after {iteration + 1} iterations."
-                )
+                raise ValueError("Information must be 'expected' or 'observed'")
+            if np.linalg.norm(beta_new - self.beta) < self.epsilon:
+                if self.verbose:
+                    print(f"Convergence reached after {iteration + 1} iterations.")
                 self.beta = beta_new
                 break
 
             self.beta = beta_new
             self.beta_history.append(self.beta.copy())
             if iteration == self.max_iter - 1:
-                print(
-                    "Maximum iterations reached without convergence."
-                )
+                print("Maximum iterations reached without convergence.")
 
         self.compute_statistics()
         self.is_fitted_ = True
@@ -245,44 +215,28 @@ class FisherScoringLogisticRegression(
         """
         Compute the standard errors, Wald statistic, p-values, and confidence intervals.
         """
-        information_matrix = self.information_matrix[
-            "information"
-        ][
+        information_matrix = self.information_matrix["information"][
             -1
         ]  # Information at the MLE
 
         if self.information == "expected":
-            information_matrix_inv = np.linalg.inv(
-                information_matrix
-            )
+            information_matrix_inv = np.linalg.inv(information_matrix)
         elif self.information == "observed":
-            information_matrix_inv = np.linalg.pinv(
-                information_matrix
-            )
+            information_matrix_inv = np.linalg.pinv(information_matrix)
 
-        self.standard_errors = np.sqrt(
-            np.diagonal(information_matrix_inv)
-        )
+        self.standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
         betas = self.beta.flatten()
 
         # Handle division by zero
         if self.standard_errors.any() == 0:
             # Raise warning
-            print(
-                "WARNING: Standard errors are zero. Setting to 1."
-            )
+            print("WARNING: Standard errors are zero. Setting to 1.")
         self.wald_statistic = betas / self.standard_errors
-        self.p_values = 2 * (
-            1 - norm.cdf(np.abs(self.wald_statistic))
-        )
+        self.p_values = 2 * (1 - norm.cdf(np.abs(self.wald_statistic)))
 
         critical_value = norm.ppf(1 - self.significance / 2)
-        self.lower_bound = (
-            betas - critical_value * self.standard_errors
-        )
-        self.upper_bound = (
-            betas + critical_value * self.standard_errors
-        )
+        self.lower_bound = betas - critical_value * self.standard_errors
+        self.upper_bound = betas + critical_value * self.standard_errors
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
@@ -297,9 +251,7 @@ class FisherScoringLogisticRegression(
         X = np.array(X)
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
-        proba_class_1 = self.logistic_function(
-            X @ self.beta
-        )
+        proba_class_1 = self.logistic_function(X @ self.beta)
         proba_class_0 = 1 - proba_class_1
         return np.hstack((proba_class_0, proba_class_1))
 
@@ -310,9 +262,7 @@ class FisherScoringLogisticRegression(
         predicted_proba = self.predict_proba(X)[:, 1]
         return (predicted_proba > 0.5).astype(int)
 
-    def get_params(
-        self, deep: bool = True
-    ) -> Dict[str, Union[float, int, str, bool]]:
+    def get_params(self, deep: bool = True) -> Dict[str, Union[float, int, str, bool]]:
         return {
             "epsilon": self.epsilon,
             "max_iter": self.max_iter,
@@ -347,12 +297,8 @@ class FisherScoringLogisticRegression(
         console = Console()
         summary_dict = self.summary()
 
-        total_iterations = len(
-            self.information_matrix["iteration"]
-        )
-        table = Table(
-            title="Fisher Scoring Logistic Regression Summary"
-        )
+        total_iterations = len(self.information_matrix["iteration"])
+        table = Table(title="Fisher Scoring Logistic Regression Summary")
 
         table.add_column(
             "Parameter",
@@ -374,10 +320,7 @@ class FisherScoringLogisticRegression(
                 else self.feature_names
             )
         else:
-            param_names = [
-                f"Beta {i}"
-                for i in range(len(summary_dict["betas"]))
-            ]
+            param_names = [f"Beta {i}" for i in range(len(summary_dict["betas"]))]
         for i, param in enumerate(param_names):
             table.add_row(
                 f"{param}",

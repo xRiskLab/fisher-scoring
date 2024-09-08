@@ -22,7 +22,7 @@ References:
 
 Christopher M. Bishop. Pattern Recognition and Machine Learning. Springer, 2006.
 
-Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning:
+Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning: 
 Data Mining, Inference, and Prediction (2nd ed.). Springer, 2009.
 
 Dan Jurafsky and James H. Martin. Speech and Language Processing, 2024.
@@ -41,9 +41,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class FisherScoringMultinomialRegression(
-    BaseEstimator, ClassifierMixin
-):
+class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
     """
     Fisher Scoring Multinomial Logistic Regression class.
     """
@@ -67,17 +65,13 @@ class FisherScoringMultinomialRegression(
         self.bias: Optional[np.ndarray] = None
         self.loss_history: List[float] = []
         self.beta_history: List[np.ndarray] = []
-        self.information_matrix: Dict[
-            str, List[np.ndarray]
-        ] = {
+        self.information_matrix: Dict[str, List[np.ndarray]] = {
             "iteration": [],
             "information": [],
         }
         self.is_fitted_: bool = False
         self.feature_names: Optional[List[str]] = None
-        self.statistics: Dict[
-            str, Dict[str, np.ndarray]
-        ] = {}
+        self.statistics: Dict[str, Dict[str, np.ndarray]] = {}
 
     @staticmethod
     def softmax_function(z: np.ndarray) -> np.ndarray:
@@ -104,9 +98,7 @@ class FisherScoringMultinomialRegression(
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print(
-                "WARNING: Singular matrix. Using pseudo-inverse."
-            )
+            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
     def fit(
@@ -124,7 +116,9 @@ class FisherScoringMultinomialRegression(
         X = np.array(X)
         y = np.array(y)
         n_samples, n_features = X.shape
+
         n_classes = len(np.unique(y))
+        self.classes_ = np.unique(y)
 
         y_one_hot = np.zeros((n_samples, n_classes))
         y_one_hot[np.arange(n_samples), y] = 1
@@ -139,9 +133,7 @@ class FisherScoringMultinomialRegression(
 
         for iteration in range(self.max_iter):
             p = self.softmax_function(X @ self.beta)
-
-            score_matrix = (y_one_hot - p).T @ X
-            score = score_matrix.T
+            score = X.T @ (y_one_hot - p)
 
             expected_I = np.zeros((n_features, n_features))
             W = p * (1 - p)
@@ -151,64 +143,40 @@ class FisherScoringMultinomialRegression(
 
             observed_I = np.zeros((n_features, n_features))
             for i in range(n_samples):
-                score_i = (y_one_hot[i] - p[i]).reshape(
-                    -1, 1
-                )
+                score_i = (y_one_hot[i] - p[i]).reshape(-1, 1)
                 Xi = X[i].reshape(-1, 1)
-                observed_I += (
-                    Xi @ score_i.T @ score_i @ Xi.T
-                )
+                observed_I += Xi @ score_i.T @ score_i @ Xi.T
 
             if self.information == "expected":
                 information_matrix = expected_I
             elif self.information == "observed":
                 information_matrix = observed_I
             else:
-                raise ValueError(
-                    "Information must be 'expected' or 'observed'"
-                )
+                raise ValueError("Information must be 'expected' or 'observed'")
 
             self.information_matrix["iteration"].append(iteration)  # type: ignore
             if self.information == "expected":
-                self.information_matrix[
-                    "information"
-                ].append(expected_I)
+                self.information_matrix["information"].append(expected_I)
             elif self.information == "observed":
-                self.information_matrix[
-                    "information"
-                ].append(observed_I)
+                self.information_matrix["information"].append(observed_I)
             else:
-                raise ValueError(
-                    "Information must be 'expected' or 'observed'"
-                )
-
-            loss = (
-                self.compute_loss(y_one_hot, p) / n_samples
-            )
-            self.loss_history.append(loss)
+                raise ValueError("Information must be 'expected' or 'observed'")
 
             loss = self.compute_loss(y_one_hot, p)
+            self.loss_history.append(loss)
+
             log_loss = -loss / X.shape[0]
 
             if self.verbose:
                 if iteration == 0:
-                    print(
-                        "Starting Fisher Scoring Iterations..."
-                    )
-                print(
-                    f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}"
-                )
+                    print("Starting Fisher Scoring Iterations...")
+                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
 
-            new_beta = (
-                self.invert_matrix(information_matrix)
-                @ score
-            )
+            new_beta = self.invert_matrix(information_matrix) @ score
             self.beta += new_beta
 
             if np.linalg.norm(new_beta) < self.epsilon:
-                print(
-                    f"Convergence reached after {iteration + 1} iterations."
-                )
+                print(f"Convergence reached after {iteration + 1} iterations.")
                 break
 
         self.compute_statistics()
@@ -217,59 +185,38 @@ class FisherScoringMultinomialRegression(
 
     def compute_statistics(self) -> None:
         """
-        Compute the standard errors, Wald statistic, p-values,
-        and confidence intervals for each class.
+        Compute the standard errors, Wald statistic, p-values, and confidence intervals for each class.
         """
         n_classes = self.beta.shape[1]  # Number of classes
 
-        self.statistics = (
-            {}
-        )  # Initialize the statistics dictionary
+        self.statistics = {}  # Initialize the statistics dictionary
 
         for k in range(n_classes):
             # Use the correct information matrix for the k-th class
-            information_matrix = self.information_matrix[
-                "information"
-            ][
+            information_matrix = self.information_matrix["information"][
                 -1
             ]  # Last information matrix (MLE)
 
             # Invert the information matrix
             if self.information == "expected":
-                information_matrix_inv = np.linalg.inv(
-                    information_matrix
-                )
+                information_matrix_inv = np.linalg.inv(information_matrix)
             elif self.information == "observed":
-                information_matrix_inv = np.linalg.pinv(
-                    information_matrix
-                )
+                information_matrix_inv = np.linalg.pinv(information_matrix)
 
             # Extract standard errors for the k-th class
-            standard_errors = np.sqrt(
-                np.diagonal(information_matrix_inv)
-            )
-            betas = self.beta[
-                :, k
-            ]  # Coefficients for the k-th class
+            standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
+            betas = self.beta[:, k]  # Coefficients for the k-th class
 
             # Wald statistics
             wald_statistic = betas / standard_errors
 
             # p-values
-            p_values = 2 * (
-                1 - norm.cdf(np.abs(wald_statistic))
-            )
+            p_values = 2 * (1 - norm.cdf(np.abs(wald_statistic)))
 
             # Confidence intervals
-            critical_value = norm.ppf(
-                1 - self.significance / 2
-            )
-            lower_bound = (
-                betas - critical_value * standard_errors
-            )
-            upper_bound = (
-                betas + critical_value * standard_errors
-            )
+            critical_value = norm.ppf(1 - self.significance / 2)
+            lower_bound = betas - critical_value * standard_errors
+            upper_bound = betas + critical_value * standard_errors
 
             # Store computed statistics in the dictionary for the k-th class
             self.statistics[f"Class_{k}"] = {
@@ -281,18 +228,13 @@ class FisherScoringMultinomialRegression(
                 "upper_bound": upper_bound,
             }
 
-    def summary(
-        self, class_idx: int
-    ) -> Dict[str, np.ndarray]:
+    def summary(self, class_idx: int) -> Dict[str, np.ndarray]:
         """
-        Get a summary of the model parameters, standard errors,
-        Wald statistics, p-values, and confidence intervals.
+        Get a summary of the model parameters, standard errors, Wald statistics, p-values, and confidence intervals.
         """
         return self.statistics.get(f"Class_{class_idx}", {})
 
-    def display_summary(
-        self, class_idx: int, style="default"
-    ) -> None:
+    def display_summary(self, class_idx: int, style="default") -> None:
         """
         Display a summary for IPython notebooks or console output for a given class index.
         Args:
@@ -302,19 +244,12 @@ class FisherScoringMultinomialRegression(
         console = Console()
         summary_dict = self.summary(class_idx)
 
-        total_iterations = len(
-            self.information_matrix["iteration"]
-        )
+        total_iterations = len(self.information_matrix["iteration"])
         table = Table(
             title=f"Fisher Scoring Multinomial Regression Summary for Class {class_idx}"
         )
 
-        table.add_column(
-            "Parameter",
-            justify="right",
-            style=style,
-            no_wrap=True,
-        )
+        table.add_column("Parameter", justify="right", style=style, no_wrap=True)
         table.add_column("Estimate", style=style)
         table.add_column("Std. Error", style=style)
         table.add_column("Wald Statistic", style=style)
@@ -329,10 +264,7 @@ class FisherScoringMultinomialRegression(
                 else self.feature_names
             )
         else:
-            param_names = [
-                f"Beta {i}"
-                for i in range(len(summary_dict["betas"]))
-            ]
+            param_names = [f"Beta {i}" for i in range(len(summary_dict["betas"]))]
 
         for i, param in enumerate(param_names):
             table.add_row(
@@ -382,9 +314,7 @@ class FisherScoringMultinomialRegression(
         probas = self.predict_proba(X)
         return np.argmax(probas, axis=1)
 
-    def get_params(
-        self, deep: bool = True
-    ) -> Dict[str, Union[float, int, str, bool]]:
+    def get_params(self, deep: bool = True) -> Dict[str, Union[float, int, str, bool]]:
         return {
             "epsilon": self.epsilon,
             "max_iter": self.max_iter,
