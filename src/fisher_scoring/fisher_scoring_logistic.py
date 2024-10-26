@@ -220,8 +220,6 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
             -1
         ]  # Information at the MLE
         
-        print(information_matrix)
-
         information_matrix_inv = self.invert_matrix(information_matrix)
 
         self.standard_errors = np.sqrt(np.diagonal(information_matrix_inv))

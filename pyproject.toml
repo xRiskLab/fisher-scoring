@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fisher-scoring"
-version = "2.0"
+version = "2.0.1"
 description = "A Python implementation of the Fisher Scoring algorithm for logistic regression, multinomial regression, and focal loss regression, with optimized matrix operations for speed and efficiency."
 authors = ["xRiskLab <contact@xrisklab.ai>"]
 license = "MIT"
