@@ -1,7 +1,7 @@
 """
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Beta Version: 2.0
+Version: 2.0.2
 2024 MIT License
 
 Fisher Scoring Multinomial Regression
@@ -113,8 +113,8 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
         if isinstance(X, pd.DataFrame):
             self.feature_names = X.columns.tolist()
 
-        X = X.astype(np.float32)
-        y = y.astype(np.int32)
+        X = np.array(X)
+        y = np.array(y)
         n_samples, n_features = X.shape
 
         n_classes = len(np.unique(y))
@@ -191,10 +191,7 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
             ]  # Last information matrix (MLE)
 
             # Invert the information matrix
-            if self.information == "expected":
-                information_matrix_inv = np.linalg.inv(information_matrix)
-            elif self.information == "observed":
-                information_matrix_inv = np.linalg.pinv(information_matrix)
+            information_matrix_inv = np.linalg.pinv(information_matrix)
 
             # Extract standard errors for the k-th class
             standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
