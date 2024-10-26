@@ -1,7 +1,7 @@
 # Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**Version:** v2.0<br>
+**Version:** v2.0.1<br>
 **License:** [MIT License](https://opensource.org/licenses/MIT) (2024)
 
 ![Title](docs/images/title.png)
@@ -124,6 +124,9 @@ pip install -r requirements.txt
 ```
 
 ## Change Log
+
+- **v2.0.1**
+  - **Bug Fixes**: Removed the debug print statement from the `FisherScoringLogisticRegression` class.
 
 - **v2.0**
   - **Performance Improvements**: Performance Enhancements: Optimized matrix calculations for substantial speed and memory efficiency improvements across all models. Leveraging streamlined operations, this version achieves up to 290x faster convergence. Performance gains per model:
