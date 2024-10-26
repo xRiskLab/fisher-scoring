@@ -1,18 +1,59 @@
-# Fisher Scoring Logistic Regression
+# Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**Version:** Beta v0.1<br>
+**Version:** v2.0<br>
 **License:** [MIT License](https://opensource.org/licenses/MIT) (2024)
+
+![Title](docs/images/title.png)
+
+This repository contains optimized Python implementations of the Fisher Scoring algorithm for various logistic regression models. With version 2.0, the core algorithms are now significantly faster due to optimized matrix operations and reduced memory usage, providing faster convergence for larger datasets.
+
+```python
+%pip install fisher-scoring
+from fisher_scoring import FisherScoringLogisticRegression
+
+# Initialize and fit model
+model = FisherScoringLogisticRegression(epsilon=1e-5)
+model.fit(X_train, y_train)
+
+# Make predictions
+predictions = model.predict(X_test)
+probabilities = model.predict_proba(X_test)
+```
 
 ## Overview
 
-This repository contains Python implementations of the Fisher Scoring algorithm for various logistic regression models:
+### Introduction
 
-1. **Fisher Scoring Logistic Regression**: Standard logistic regression using Fisher scoring.
-2. **Fisher Scoring Multinomial Regression**: Multinomial logistic regression for multi-class classification.
-3. **Fisher Scoring Focal Loss Regression**: Logistic regression with focal loss for imbalanced classification problems.
+This repository contains a Python package with scikit-learn compatible implementations of the Fisher Scoring algorithm for various logistic regression use cases:
 
-The Fisher Scoring algorithm is an iterative optimization algorithm that updates model parameters using the observed or expected Fisher information matrix.
+1. Binary classification problems: **Logistic Regression**.
+2. Multi-class classification problems: **Multinomial Logistic Regression**.
+3. Imbalanced classification problems: **Focal Loss Logistic Regression**.
+
+### Fisher Scoring Algorithm
+
+The Fisher Scoring algorithm is an iterative optimization technique that estimates maximum likelihood estimates by leveraging the expected or observed Fisher information matrix. This second-order optimization method allows to avoid the use of learning rates and provides more stable convergence compared to gradient descent.
+
+There are two types of information matrices used in the Fisher Scoring algorithm:
+
+* **Observed Information Matrix**: Uses ground truth labels to calculate the information matrix, often resulting in more reliable inference metrics.
+* **Expected Information Matrix**: Relies on predicted probabilities, providing an efficient approximation for the information matrix.
+
+These information matrices are used to derive standard errors of estimates to calculate detailed model statistics, including Wald statistics, p-values, and confidence intervals at a chosen level.
+
+### Implementation Notes
+
+- **Fisher Scoring Multinomial Regression**  
+  The `FisherScoringMultinomialRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than \( K - 1 \). This approach allows multi-class classification problems to be converted to binary problems by calculating \(1 - probability of the target class).
+
+- **Fisher Scoring Focal Regression**  
+  The `FisherScoringFocalRegression` class employs a non-standard log-likelihood function in its optimization process.
+
+  The focal loss function, originally developed for object detection, prioritizes difficult-to-classify examples—often the minority class—by reducing the contribution of easy-to-classify samples. It introduces a focusing parameter, *gamma*, which down-weights the influence of easily classified instances, thereby concentrating learning on challenging cases.
+
+  Source: [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002).
+
 
 ## Models
 
@@ -69,7 +110,8 @@ The `FisherScoringFocalRegression` class implements the Fisher Scoring algorithm
 - `use_bias`: Include a bias term in the model.
 - `verbose`: Enable verbose output.
 
-The algorithm is experimental and may require further testing and optimization.
+*Note*: The algorithm does not have a summary method for model statistics implemented yet.
+
 
 ## Installation
 
@@ -82,6 +124,13 @@ pip install -r requirements.txt
 ```
 
 ## Change Log
+
+- **v2.0**
+  - **Performance Improvements**: Performance Enhancements: Optimized matrix calculations for substantial speed and memory efficiency improvements across all models. Leveraging streamlined operations, this version achieves up to 290x faster convergence. Performance gains per model:
+    - *Multinomial Logistic Regression*: Training time reduced from 125.10s to 0.43s (~290x speedup).
+    - *Logistic Regression*: Training time reduced from 0.24s to 0.05s (~5x speedup).
+    - *Focal Loss Logistic Regression*: Training time reduced from 0.26s to 0.01s (~26x speedup).
+  - **Bug Fixes**: `verbose` parameter in Focal Loss Logistic Regression now functions as expected, providing accurate logging during training.
 
 - **v0.1.4**
   - Updated log likelihood for Multinomial Regression and minor changes to Logistic Regression for integration with scikit-learn.
