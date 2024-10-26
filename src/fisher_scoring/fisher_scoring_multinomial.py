@@ -1,7 +1,7 @@
 """
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Beta Version: 0.1
+Beta Version: 2.0
 2024 MIT License
 
 Fisher Scoring Multinomial Regression
@@ -113,8 +113,8 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
         if isinstance(X, pd.DataFrame):
             self.feature_names = X.columns.tolist()
 
-        X = np.array(X)
-        y = np.array(y)
+        X = X.astype(np.float32)
+        y = y.astype(np.int32)
         n_samples, n_features = X.shape
 
         n_classes = len(np.unique(y))
@@ -135,36 +135,27 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
             p = self.softmax_function(X @ self.beta)
             score = X.T @ (y_one_hot - p)
 
-            expected_I = np.zeros((n_features, n_features))
-            W = p * (1 - p)
-            for i in range(n_classes):
-                Wi = np.diag(W[:, i])
-                expected_I += X.T @ Wi @ X
-
-            observed_I = np.zeros((n_features, n_features))
-            for i in range(n_samples):
-                score_i = (y_one_hot[i] - p[i]).reshape(-1, 1)
-                Xi = X[i].reshape(-1, 1)
-                observed_I += Xi @ score_i.T @ score_i @ Xi.T
-
             if self.information == "expected":
-                information_matrix = expected_I
-            elif self.information == "observed":
-                information_matrix = observed_I
+                # Expected Fisher Information matrix
+                W_diag = (p * (1 - p)).sum(axis=1)
+                expected_I = (X.T * W_diag) @ X
             else:
-                raise ValueError("Information must be 'expected' or 'observed'")
-
-            self.information_matrix["iteration"].append(iteration)  # type: ignore
-            if self.information == "expected":
-                self.information_matrix["information"].append(expected_I)
-            elif self.information == "observed":
-                self.information_matrix["information"].append(observed_I)
-            else:
-                raise ValueError("Information must be 'expected' or 'observed'")
-
+                # Observed Fisher Information matrix
+                score_vector = (y_one_hot - p).reshape(X.shape[0], -1, 1)
+                X_vector = X.reshape(X.shape[0], -1, 1)
+                observed_I = np.sum(
+                    X_vector @ score_vector.transpose(0, 2, 1) @ score_vector @ X_vector.transpose(0, 2, 1),
+                    axis=0
+                )
+            
+            # Select information matrix based on expected or observed
+            information_matrix = expected_I if self.information == "expected" else observed_I
+            self.information_matrix["iteration"].append(iteration)
+            self.information_matrix["information"].append(information_matrix)
+            
+            # Calculate and log the loss
             loss = self.compute_loss(y_one_hot, p)
             self.loss_history.append(loss)
-
             log_loss = -loss / X.shape[0]
 
             if self.verbose:
@@ -172,9 +163,11 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
                     print("Starting Fisher Scoring Iterations...")
                 print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
 
+            # Update beta with optimized matrix inversion and step update
             new_beta = self.invert_matrix(information_matrix) @ score
             self.beta += new_beta
 
+            # Check for convergence
             if np.linalg.norm(new_beta) < self.epsilon:
                 print(f"Convergence reached after {iteration + 1} iterations.")
                 break

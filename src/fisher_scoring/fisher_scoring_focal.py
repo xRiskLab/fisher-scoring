@@ -1,7 +1,7 @@
 """
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Beta Version: 0.1
+Beta Version: 2.0
 2024 MIT License
 
 Fisher Scoring Focal Loss Regression
@@ -136,11 +136,23 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
             focal_p = p * pt
 
             score = X.T @ ((y - p) * pt)
-            score_vector = (y - focal_p) * X
-            W = np.diag((focal_p * (1 - focal_p)).ravel())
 
-            expected_I = X.T @ W @ X
-            observed_I = score_vector.T @ score_vector
+            # Select information matrix based on expected or observed Fisher information
+            if self.information == "expected":
+                # Expected Fisher Information matrix
+                W_diag = (focal_p * (1 - focal_p)).ravel()
+                information_matrix = (X.T * W_diag) @ X
+            else:
+                # Observed Fisher Information matrix
+                score_vector = (y - focal_p).reshape(X.shape[0], 1, 1)
+                X_vector = X.reshape(X.shape[0], -1, 1)
+                information_matrix = np.sum(
+                    X_vector @ score_vector.transpose(0, 2, 1) @ score_vector @ X_vector.transpose(0, 2, 1),
+                    axis=0
+                )
+                
+            self.information_matrix["iteration"].append(iteration)
+            self.information_matrix["information"].append(information_matrix)
 
             loss = self.compute_loss(y, p)
             focal_loss = -loss / X.shape[0]
@@ -148,19 +160,17 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
             self.loss_history.append(loss)
 
             if self.verbose:
-                loss = self.compute_loss(y, p) / X.shape[0]
                 if iteration == 0:
                     print("Starting Fisher Scoring Iterations...")
                 print(f"Iteration: {iteration + 1}, Focal Loss: {focal_loss:.4f}")
 
-            if self.information == "expected":
-                beta_new = self.beta + self.invert_matrix(expected_I) @ score
-            elif self.information == "observed":
-                beta_new = self.beta + self.invert_matrix(observed_I) @ score
-            else:
-                raise ValueError("Information must be 'expected' or 'observed'")
+            # Update beta using the Fisher Scoring update rule
+            beta_new = self.beta + self.invert_matrix(information_matrix) @ score
+            
+            # Check for convergence
             if np.linalg.norm(beta_new - self.beta) < self.epsilon:
-                print(f"Convergence reached after {iteration + 1} iterations.")
+                if self.verbose:
+                    print(f"Convergence reached after {iteration + 1} iterations.")
                 self.beta = beta_new
                 break
 

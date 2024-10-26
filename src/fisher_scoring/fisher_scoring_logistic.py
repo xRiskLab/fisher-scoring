@@ -1,7 +1,7 @@
 """
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Beta Version: 0.1
+Beta Version: 2.0
 2024 MIT License
 
 Fisher Scoring Logistic Regression
@@ -163,21 +163,24 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
 
         for iteration in range(self.max_iter):
             p = self.logistic_function(X @ self.beta)
-            W = np.diag((p * (1 - p)).ravel())
-
-            # Compute Score and Information
             score_vector = (y - p) * X
             score = np.sum(score_vector, axis=0).reshape(-1, 1)
-            expected_I = X.T @ W @ X
-            observed_I = score_vector.T @ score_vector
-
-            self.information_matrix["iteration"].append(iteration)  # type: ignore
+            
             if self.information == "expected":
-                self.information_matrix["information"].append(expected_I)
-            elif self.information == "observed":
-                self.information_matrix["information"].append(observed_I)
+                # Expected Fisher Information matrix
+                W_diag = (p * (1 - p)).ravel()
+                information_matrix = (X.T * W_diag) @ X
             else:
-                raise ValueError("Information must be 'expected' or 'observed'")
+                # Observed Fisher Information matrix
+                score_vector = (y - p).reshape(X.shape[0], 1, 1)
+                X_vector = X.reshape(X.shape[0], -1, 1)
+                information_matrix = np.sum(
+                    X_vector @ score_vector.transpose(0, 2, 1) @ score_vector @ X_vector.transpose(0, 2, 1),
+                    axis=0
+                )
+
+            self.information_matrix["iteration"].append(iteration)
+            self.information_matrix["information"].append(information_matrix)
 
             loss = self.compute_loss(y, p)
             log_loss = -loss / X.shape[0]
@@ -188,14 +191,12 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
                 loss = self.compute_loss(y, p) / X.shape[0]
                 if iteration == 0:
                     print("Starting Fisher Scoring Iterations...")
-                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
+                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")        
 
-            if self.information == "expected":
-                beta_new = self.beta + self.invert_matrix(expected_I) @ score
-            elif self.information == "observed":
-                beta_new = self.beta + self.invert_matrix(observed_I) @ score
-            else:
-                raise ValueError("Information must be 'expected' or 'observed'")
+            # Update beta using the Fisher scoring algorithm
+            beta_new = self.beta + self.invert_matrix(information_matrix) @ score
+
+            # Check for convergence
             if np.linalg.norm(beta_new - self.beta) < self.epsilon:
                 if self.verbose:
                     print(f"Convergence reached after {iteration + 1} iterations.")
@@ -218,11 +219,10 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
         information_matrix = self.information_matrix["information"][
             -1
         ]  # Information at the MLE
+        
+        print(information_matrix)
 
-        if self.information == "expected":
-            information_matrix_inv = np.linalg.inv(information_matrix)
-        elif self.information == "observed":
-            information_matrix_inv = np.linalg.pinv(information_matrix)
+        information_matrix_inv = self.invert_matrix(information_matrix)
 
         self.standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
         betas = self.beta.flatten()
