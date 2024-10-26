@@ -1,10 +1,10 @@
 # Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**Version:** v2.0.1<br>
+**Version:** v2.0.2<br>
 **License:** [MIT License](https://opensource.org/licenses/MIT) (2024)
 
-![Title](docs/images/title.png)
+![Title](https://github.com/xRiskLab/fisher-scoring/raw/main/docs/images/title.png)
 
 This repository contains optimized Python implementations of the Fisher Scoring algorithm for various logistic regression models. With version 2.0, the core algorithms are now significantly faster due to optimized matrix operations and reduced memory usage, providing faster convergence for larger datasets.
 
@@ -123,7 +123,16 @@ cd fisher-scoring
 pip install -r requirements.txt
 ```
 
+Alternatively, install the package directly from PyPI.
+
+```bash
+pip install fisher-scoring
+```
+
 ## Change Log
+
+- **v2.0.2**
+  - **Bug Fixes**: Fixed the `FisherScoringMultinomialRegression` class to have flexible NumPy data types.
 
 - **v2.0.1**
   - **Bug Fixes**: Removed the debug print statement from the `FisherScoringLogisticRegression` class.

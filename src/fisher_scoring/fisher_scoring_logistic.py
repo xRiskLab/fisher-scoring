@@ -1,7 +1,7 @@
 """
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Beta Version: 2.0
+Version: 2.0.2
 2024 MIT License
 
 Fisher Scoring Logistic Regression
