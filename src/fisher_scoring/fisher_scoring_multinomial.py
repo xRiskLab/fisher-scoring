@@ -1,16 +1,16 @@
 """
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Version: 2.0.2
+Version: 2.0.3
 2024 MIT License
 
 Fisher Scoring Multinomial Regression
 -------------------------------------
 
-This is a Python implementation of the Fisher Scoring algorithm for multinomial 
+This is a Python implementation of the Fisher Scoring algorithm for multinomial
 logistic regression. The Fisher Scoring algorithm is an iterative optimization
-algorithm that is used to estimate the parameters of a multinomial logistic 
-regression model. 
+algorithm that is used to estimate the parameters of a multinomial logistic
+regression model.
 
 The algorithm is based on the Newton-Raphson method and uses the expected or
 observed Fisher information matrix to update the model parameters.
@@ -22,7 +22,7 @@ References:
 
 Christopher M. Bishop. Pattern Recognition and Machine Learning. Springer, 2006.
 
-Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning: 
+Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning:
 Data Mining, Inference, and Prediction (2nd ed.). Springer, 2009.
 
 Dan Jurafsky and James H. Martin. Speech and Language Processing, 2024.
@@ -147,12 +147,12 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
                     X_vector @ score_vector.transpose(0, 2, 1) @ score_vector @ X_vector.transpose(0, 2, 1),
                     axis=0
                 )
-            
+
             # Select information matrix based on expected or observed
             information_matrix = expected_I if self.information == "expected" else observed_I
             self.information_matrix["iteration"].append(iteration)
             self.information_matrix["information"].append(information_matrix)
-            
+
             # Calculate and log the loss
             loss = self.compute_loss(y_one_hot, p)
             self.loss_history.append(loss)
@@ -303,6 +303,71 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
         """
         probas = self.predict_proba(X)
         return np.argmax(probas, axis=1)
+
+    def predict_ci(self, X: np.ndarray, method: str = "logit") -> Dict[int, np.ndarray]:
+        """
+        Compute confidence intervals for predicted probabilities or logits for each class.
+
+        Parameters:
+            X (numpy.ndarray): Input data matrix.
+            method (str): Confidence interval method, "logit" (default) or "proba".
+
+        Returns:
+            Dict[int, np.ndarray]: A dictionary where the key is the class index and the value is a
+            2D array with lower and upper confidence intervals for predictions of that class.
+        """
+        if not self.is_fitted_:
+            raise NotFittedError(
+                "This Classifier instance is not fitted yet. "
+                "Call 'fit' with appropriate arguments "
+                "before using this estimator."
+            )
+
+        if self.use_bias:
+            X = np.hstack([np.ones((X.shape[0], 1)), X])
+
+        # Compute logits for each class
+        logits = X @ self.beta
+        probabilities = self.softmax_function(logits)
+        information_matrix = self.information_matrix["information"][-1]
+        cov_matrix = self.invert_matrix(information_matrix)
+        z_crit = norm.ppf(1 - self.significance / 2)  # Critical value for CI
+
+        ci_results = {}
+        for class_idx in range(self.beta.shape[1]):  # Iterate over each class
+            beta_k = self.beta[:, class_idx]
+            logits_k = logits[:, class_idx]
+            probabilities_k = probabilities[:, class_idx]
+
+            if method == "logit":
+                # Gradient for linear logit confidence intervals
+                std_errors = np.array([np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X])
+                lower_logit = logits_k - z_crit * std_errors
+                upper_logit = logits_k + z_crit * std_errors
+
+                # Reshape logits for the softmax function
+                lower_logits_full = logits.copy()
+                upper_logits_full = logits.copy()
+
+                # Replace the current class logits with lower and upper bounds
+                lower_logits_full[:, class_idx] = lower_logit
+                upper_logits_full[:, class_idx] = upper_logit
+
+                # Compute the confidence intervals using the softmax function
+                lower_ci = self.softmax_function(lower_logits_full)[:, class_idx]
+                upper_ci = self.softmax_function(upper_logits_full)[:, class_idx]
+            elif method == "proba":
+                # Gradients for probability confidence intervals
+                gradients = (probabilities_k * (1 - probabilities_k))[:, None] * X
+                std_errors = np.sqrt(np.sum(gradients @ cov_matrix * gradients, axis=1))
+                lower_ci = np.clip(probabilities_k - z_crit * std_errors, 0, 1)
+                upper_ci = np.clip(probabilities_k + z_crit * std_errors, 0, 1)
+            else:
+                raise ValueError(f"Unknown method: {method}. Use 'logit' or 'proba'.")
+
+            ci_results[class_idx] = np.vstack((lower_ci, upper_ci)).T  # Shape: (n_samples, 2)
+
+        return ci_results
 
     def get_params(self, deep: bool = True) -> Dict[str, Union[float, int, str, bool]]:
         return {

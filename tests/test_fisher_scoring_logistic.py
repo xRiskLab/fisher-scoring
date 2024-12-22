@@ -1,9 +1,7 @@
 import unittest
 
 import numpy as np
-from fisher_scoring_logistic import (
-    FisherScoringLogisticRegression,
-)
+from fisher_scoring_logistic import FisherScoringLogisticRegression
 from sklearn.exceptions import NotFittedError
 
 
@@ -65,6 +63,31 @@ class TestFisherScoringLogisticRegression(
             and (probabilities <= 1).all(),
             "Probabilities should be between 0 and 1.",
         )
+
+    def test_predict_ci(self):
+        self.model.fit(self.X, self.y)
+        ci_logit = self._predict_ci(
+            "logit",
+            "CI for logits should have shape (n_samples, 2).",
+            "Lower CI should not exceed upper CI for logits.",
+        )
+        ci_proba = self._predict_ci(
+            "proba",
+            "CI for probabilities should have shape (n_samples, 2).",
+            "Lower CI should not exceed upper CI for probabilities.",
+        )
+        self.assertTrue(
+            (ci_proba >= 0).all() and (ci_proba <= 1).all(),
+            "Probability CIs should lie between 0 and 1.",
+        )
+
+    def _predict_ci(self, method, arg1, arg2):
+        # Test the "logit" method
+        result = self.model.predict_ci(self.X, method=method)
+        self.assertEqual(result.shape, (self.X.shape[0], 2), arg1)
+        self.assertTrue((result[:, 0] <= result[:, 1]).all(), arg2)
+
+        return result
 
     def test_fit_difficult_convergence(self):
         # Generate an imbalanced dataset with a very small number of positive samples

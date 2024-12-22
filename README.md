@@ -1,7 +1,7 @@
 # Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**Version:** v2.0.2<br>
+**Version:** v2.0.3<br>
 **License:** [MIT License](https://opensource.org/licenses/MIT) (2024)
 
 ![Title](https://github.com/xRiskLab/fisher-scoring/raw/main/docs/images/title.png)
@@ -13,7 +13,7 @@ This repository contains optimized Python implementations of the Fisher Scoring 
 from fisher_scoring import FisherScoringLogisticRegression
 
 # Initialize and fit model
-model = FisherScoringLogisticRegression(epsilon=1e-5)
+model = FisherScoringLogisticRegression()
 model.fit(X_train, y_train)
 
 # Make predictions
@@ -37,23 +37,21 @@ The Fisher Scoring algorithm is an iterative optimization technique that estimat
 
 There are two types of information matrices used in the Fisher Scoring algorithm:
 
-* **Observed Information Matrix**: Uses ground truth labels to calculate the information matrix, often resulting in more reliable inference metrics.
 * **Expected Information Matrix**: Relies on predicted probabilities, providing an efficient approximation for the information matrix.
+* **Observed Information Matrix**: Uses ground truth labels to calculate the information matrix, often resulting in more reliable inference metrics.
 
 These information matrices are used to derive standard errors of estimates to calculate detailed model statistics, including Wald statistics, p-values, and confidence intervals at a chosen level.
 
 ### Implementation Notes
 
 - **Fisher Scoring Multinomial Regression**  
-  The `FisherScoringMultinomialRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than \( K - 1 \). This approach allows multi-class classification problems to be converted to binary problems by calculating \(1 - probability of the target class).
+  The `FisherScoringMultinomialRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than $K - 1$. This approach allows multi-class classification problems to be converted to binary problems by calculating $1 - P_{Class=1}$.
 
 - **Fisher Scoring Focal Regression**  
-  The `FisherScoringFocalRegression` class employs a non-standard log-likelihood function in its optimization process.
-
+  The `FisherScoringFocalRegression` class employs a non-standard focal log-likelihood function in its optimization process leveraging $\gamma$ to focus on difficult-to-classify examples.
   The focal loss function, originally developed for object detection, prioritizes difficult-to-classify examples—often the minority class—by reducing the contribution of easy-to-classify samples. It introduces a focusing parameter, *gamma*, which down-weights the influence of easily classified instances, thereby concentrating learning on challenging cases.
 
   Source: [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002).
-
 
 ## Models
 
@@ -72,6 +70,7 @@ The `FisherScoringLogisticRegression` class is a custom implementation of logist
 - `fit(X, y)`: Fit the model to the data.
 - `predict(X)`: Predict target labels for input data.
 - `predict_proba(X)`: Predict class probabilities for input data.
+- `predict_ci(X)`: Predict class probabilities with confidence intervals.
 - `get_params()`: Get model parameters.
 - `set_params(**params)`: Set model parameters.
 - `summary()`: Get a summary of model parameters, standard errors, p-values, and confidence intervals.
@@ -93,6 +92,7 @@ The `FisherScoringMultinomialRegression` class implements the Fisher Scoring alg
 - `fit(X, y)`: Fit the model to the data.
 - `predict(X)`: Predict target labels for input data.
 - `predict_proba(X)`: Predict class probabilities for input data.
+- `predict_ci(X)`: Predict class probabilities with confidence intervals.
 - `summary(class_idx)`: Get a summary of model parameters, standard errors, p-values, and confidence intervals for a specific class.
 - `display_summary(class_idx)`: Display a summary of model parameters, standard errors, p-values, and confidence intervals for a specific class.
 
@@ -110,8 +110,15 @@ The `FisherScoringFocalRegression` class implements the Fisher Scoring algorithm
 - `use_bias`: Include a bias term in the model.
 - `verbose`: Enable verbose output.
 
-*Note*: The algorithm does not have a summary method for model statistics implemented yet.
-
+**Methods:**
+- `fit(X, y)`: Fit the model to the data.
+- `predict(X)`: Predict target labels for input data.
+- `predict_proba(X)`: Predict class probabilities for input data.
+- `predict_ci(X)`: Predict class probabilities with confidence intervals.
+- `get_params()`: Get model parameters.
+- `set_params(**params)`: Set model parameters.
+- `summary()`: Get a summary of model parameters, standard errors, p-values, and confidence intervals.
+- `display_summary()`: Display a summary of model parameters, standard errors, p-values, and confidence intervals.
 
 ## Installation
 
@@ -130,6 +137,10 @@ pip install fisher-scoring
 ```
 
 ## Change Log
+
+- **v2.0.3**
+  - Added a new functionality of inference of mean responses with confidence intervals for all algorithms.
+  - Focal logistic regression now supports all model statistics, including standard errors, Wald statistics, p-values, and confidence intervals.
 
 - **v2.0.2**
   - **Bug Fixes**: Fixed the `FisherScoringMultinomialRegression` class to have flexible NumPy data types.

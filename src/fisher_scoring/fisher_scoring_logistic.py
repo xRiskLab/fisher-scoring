@@ -1,12 +1,13 @@
 """
-Author: xRiskLab (deburky)
-GitHub: github.com/xRiskLab
-Version: 2.0.2
-2024 MIT License
-
 Fisher Scoring Logistic Regression
 ----------------------------------
 
+Author: xRiskLab (deburky)
+GitHub: https://github.com/xRiskLab
+Version: 2.0.3 (2024)
+License: MIT
+
+Description:
 This module contains the `FisherScoringLogisticRegression` class, which is a custom
 implementation of logistic regression using the Fisher scoring algorithm. The
 Fisher scoring algorithm is an iterative optimization algorithm that uses the
@@ -14,47 +15,22 @@ observed or expected information matrix to update the model parameters. The clas
 methods for fitting the model, making predictions, and computing model statistics.
 
 We provide two types of information matrices: 'expected' and 'observed'. The 'expected'
-information matrix is computed using the Hessian matrix, while the 'observed' information 
-matrix is computed using the score. This allows to understand the difference between the
-two types of information matrices and their impact on the model parameters and statistics.
-
-Additionally, the class provides methods for computing the standard errors, Wald statistic,
-p-values, and confidence intervals for the model parameters, which are not available in
-sci-kit learn's logistic regression implementation. The implementation mirrors the
-functionality of the statsmodels library in terms of parameter estimation and inference.
-
-The `FisherScoringLogisticRegression` class is implemented as a scikit-learn compatible
-estimator, allowing it to be used in scikit-learn pipelines and workflows. The class
-inherits from the BaseEstimator and ClassifierMixin classes, providing common methods
-such as get_params and set_params.
-
-The `FisherScoringLogisticRegression` class has the following parameters:
-
-- epsilon: A float value specifying the convergence threshold for the algorithm.
-- max_iter: An integer specifying the maximum number of iterations for the algorithm.
-- information: A string specifying the type of information matrix to use ('expected' or 'observed').
-- use_bias: A boolean indicating whether to include a bias term in the model.
-- significance: A float value specifying the significance level for computing confidence intervals.
-
-The class provides the following methods:
-
-- fit(X, y): Fit the logistic regression model to the input data X and target labels y.
-- predict(X): Predict the target labels for the input data X.
-- predict_proba(X): Predict the class probabilities for the input data X.
-- get_params(): Get the parameters of the logistic regression model.
-- set_params(**params): Set the parameters of the logistic regression model.
-- summary(): Get a summary of the model parameters, standard errors, p-values, and confidence intervals.
+information matrix is computed using the Hessian matrix, while the 'observed' information
+matrix is computed using the outer product of the score vectors (variance of the score).
 
 If `use_bias` is set to True, the model will include a bias term in the logistic regression
-equation. If `use_bias` is set to True, we add the bias term before the input features in 
+equation. If `use_bias` is set to True, we add the bias term before the input features in
 the design matrix. In the summary output, the bias term will be included as the first element.
 
 References:
 
-Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning: 
-Data Mining, Inference, and Prediction (2nd ed.). Springer, 2009.
-
 Erich L. Lehmann and George Casella. Theory of Point Estimation (2nd ed.). Springer, 1998.
+
+Gareth James, Daniela Witten, Trevor Hastie, and Robert Tibshirani. An Introduction to Statistical
+Learning: with Applications in Python. Springer, 2023.
+
+Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning:
+Data Mining, Inference, and Prediction (2nd ed.). Springer, 2009.
 
 Yudi Pawitan. In All Likelihood: Statistical Modelling and Inference Using Likelihood. Oxford University
 Press, 2001.
@@ -107,7 +83,8 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
         self.upper_bound: Optional[np.ndarray] = None
         self.is_fitted_: bool = False
         self.verbose = verbose
-        self.feature_names = None
+        self.feature_names: Optional[List[str]] = None
+        self.score_vectors = pd.DataFrame()
 
     @staticmethod
     def logistic_function(z: np.ndarray) -> np.ndarray:
@@ -137,15 +114,8 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
             print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
-    def fit(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-    ) -> "FisherScoringLogisticRegression":
-        """
-        Fit the logistic regression model using Fisher scoring.
-        """
-
+    def fit(self, X: np.ndarray, y: np.ndarray,) -> "FisherScoringLogisticRegression":
+        """Fit the logistic regression model using Fisher scoring."""
         if isinstance(X, pd.DataFrame):
             self.feature_names = X.columns.tolist()
 
@@ -165,7 +135,7 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
             p = self.logistic_function(X @ self.beta)
             score_vector = (y - p) * X
             score = np.sum(score_vector, axis=0).reshape(-1, 1)
-            
+
             if self.information == "expected":
                 # Expected Fisher Information matrix
                 W_diag = (p * (1 - p)).ravel()
@@ -175,7 +145,9 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
                 score_vector = (y - p).reshape(X.shape[0], 1, 1)
                 X_vector = X.reshape(X.shape[0], -1, 1)
                 information_matrix = np.sum(
-                    X_vector @ score_vector.transpose(0, 2, 1) @ score_vector @ X_vector.transpose(0, 2, 1),
+                    X_vector
+                    @ score_vector.transpose(0, 2, 1)
+                    @ score_vector @ X_vector.transpose(0, 2, 1),
                     axis=0
                 )
 
@@ -191,7 +163,7 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
                 loss = self.compute_loss(y, p) / X.shape[0]
                 if iteration == 0:
                     print("Starting Fisher Scoring Iterations...")
-                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")        
+                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
 
             # Update beta using the Fisher scoring algorithm
             beta_new = self.beta + self.invert_matrix(information_matrix) @ score
@@ -201,25 +173,25 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
                 if self.verbose:
                     print(f"Convergence reached after {iteration + 1} iterations.")
                 self.beta = beta_new
+                self.max_iter = iteration + 1
                 break
 
             self.beta = beta_new
             self.beta_history.append(self.beta.copy())
             if iteration == self.max_iter - 1:
                 print("Maximum iterations reached without convergence.")
+                self.max_iter = iteration + 1
 
         self.compute_statistics()
         self.is_fitted_ = True
         return self
 
     def compute_statistics(self) -> None:
-        """
-        Compute the standard errors, Wald statistic, p-values, and confidence intervals.
-        """
+        """Compute the standard errors, Wald statistic, p-values, and confidence intervals."""
         information_matrix = self.information_matrix["information"][
             -1
         ]  # Information at the MLE
-        
+
         information_matrix_inv = self.invert_matrix(information_matrix)
 
         self.standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
@@ -260,6 +232,41 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
         predicted_proba = self.predict_proba(X)[:, 1]
         return (predicted_proba > 0.5).astype(int)
 
+    def predict_ci(self, X, method="logit"):
+        """
+        Compute confidence intervals for predicted probabilities or logits.
+
+        Parameters:
+            X (numpy.ndarray): Input data matrix.
+            method (str): Confidence interval method, "logit" (default) or "proba".
+
+        Returns:
+            np.ndarray: Array with lower and upper confidence intervals for predictions.
+        """
+        if self.use_bias:
+            X = np.hstack([np.ones((X.shape[0], 1)), X])
+
+        logit = (X @ self.beta).flatten()
+        proba = self.logistic_function(logit)
+        information_matrix = self.information_matrix["information"][-1]
+        cov_matrix = self.invert_matrix(information_matrix)
+        z_crit = norm.ppf(1 - self.significance / 2)  # Critical value for CI
+
+        if method == "logit":
+            # Gradient for linear logit confidence intervals
+            std_errors = np.array([np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X])
+            lower_proba = self.logistic_function(logit - z_crit * std_errors)
+            upper_proba = self.logistic_function(logit + z_crit * std_errors)
+        elif method == 'proba':  # Probability confidence intervals
+            gradients = (proba * (1 - proba))[:, None] * X  # Element-wise gradient
+            std_errors = np.sqrt(np.sum(gradients @ cov_matrix * gradients, axis=1))
+            lower_proba = np.clip(proba - z_crit * std_errors, 0, 1)
+            upper_proba = np.clip(proba + z_crit * std_errors, 0, 1)
+        else:
+            raise ValueError(f"Unknown method: {method}. Use 'logit' or 'proba'.")
+
+        return np.vstack((lower_proba, upper_proba)).T
+
     def get_params(self, deep: bool = True) -> Dict[str, Union[float, int, str, bool]]:
         return {
             "epsilon": self.epsilon,
@@ -277,6 +284,7 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
         return self
 
     def summary(self) -> Dict[str, np.ndarray]:
+        """Get a summary of the model parameters, standard errors, p-values, and confidence intervals."""
         return {
             "betas": self.beta.flatten(),
             "standard_errors": self.standard_errors,
@@ -289,6 +297,7 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
     def display_summary(self, style="default") -> None:
         """
         Display a summary for IPython notebooks or console output.
+
         Args:
             style (str): The style for the summary output.
         """

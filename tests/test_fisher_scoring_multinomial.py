@@ -1,9 +1,7 @@
 import unittest
 
 import numpy as np
-from fisher_scoring_multinomial import (
-    FisherScoringMultinomialRegression,
-)
+from fisher_scoring_multinomial import FisherScoringMultinomialRegression
 from sklearn.exceptions import NotFittedError
 
 
@@ -64,6 +62,49 @@ class TestFisherScoringMultinomialRegression(
             "Probabilities should be between 0 and 1.",
         )
 
+    def test_predict_ci(self):
+        self.model.fit(self.X, self.y)
+        # Test "logit" confidence intervals
+        ci_logit = self.model.predict_ci(self.X, method="logit")
+        self.assertEqual(
+            len(ci_logit),
+            3,
+            "Logit confidence intervals should have entries for each class.",
+        )
+        # sourcery skip: no-loop-in-tests
+        for class_idx, ci in ci_logit.items():
+            self.assertEqual(
+                ci.shape,
+                (self.X.shape[0], 2),
+                f"CI for class {class_idx} should have shape (n_samples, 2).",
+            )
+            self.assertTrue(
+                (ci[:, 0] <= ci[:, 1]).all(),
+                f"Lower CI should not exceed upper CI for class {class_idx}.",
+            )
+
+        # Test "proba" confidence intervals
+        ci_proba = self.model.predict_ci(self.X, method="proba")
+        self.assertEqual(
+            len(ci_proba),
+            3,
+            "Probability confidence intervals should have entries for each class.",
+        )
+        # sourcery skip: no-loop-in-tests
+        for class_idx, ci in ci_proba.items():
+            self.assertEqual(
+                ci.shape,
+                (self.X.shape[0], 2),
+                f"CI for class {class_idx} should have shape (n_samples, 2).",
+            )
+            self.assertTrue(
+                (ci[:, 0] <= ci[:, 1]).all(),
+                f"Lower CI should not exceed upper CI for class {class_idx}.",
+            )
+            self.assertTrue(
+                (ci >= 0).all() and (ci <= 1).all(),
+                f"Probability CIs for class {class_idx} should lie between 0 and 1.",
+            )
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,2 +1,9 @@
-.py_test_cache/
-.trunk/
+.DS_Store
+**/.DS_Store/
+.pytest_cache/
+**/.pytest_cache/
+__pycache__/
+**/__pycache__/
+**/__pycache__/*.pyc
+*.pyc
+**/*.pyc
