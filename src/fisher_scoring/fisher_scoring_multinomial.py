@@ -1,11 +1,12 @@
 """
+fisher_scoring_multinomial.py.
+
+Multinomial Logistic Regression
+-------------------------------------
+
 Author: xRiskLab (deburky)
 GitHub: github.com/xRiskLab
-Version: 2.0.3
-2024 MIT License
-
-Fisher Scoring Multinomial Regression
--------------------------------------
+License: MIT
 
 This is a Python implementation of the Fisher Scoring algorithm for multinomial
 logistic regression. The Fisher Scoring algorithm is an iterative optimization
@@ -13,7 +14,7 @@ algorithm that is used to estimate the parameters of a multinomial logistic
 regression model.
 
 The algorithm is based on the Newton-Raphson method and uses the expected or
-observed Fisher information matrix to update the model parameters.
+empirical Fisher information matrix to update the model parameters.
 
 Additionally we provide a method to compute the standard errors, Wald statistic,
 p-values, and confidence intervals for each class.
@@ -28,6 +29,8 @@ Data Mining, Inference, and Prediction (2nd ed.). Springer, 2009.
 Dan Jurafsky and James H. Martin. Speech and Language Processing, 2024.
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -41,7 +44,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
+class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
     """
     Fisher Scoring Multinomial Logistic Regression class.
     """
@@ -105,7 +108,7 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
         self,
         X: np.ndarray,
         y: np.ndarray,
-    ) -> "FisherScoringMultinomialRegression":
+    ) -> MultinomialLogisticRegression:
         """
         Fit the multinomial logistic regression model using Fisher scoring.
         """
@@ -140,16 +143,21 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
                 W_diag = (p * (1 - p)).sum(axis=1)
                 expected_I = (X.T * W_diag) @ X
             else:
-                # Observed Fisher Information matrix
+                # Empirical Fisher Information matrix
                 score_vector = (y_one_hot - p).reshape(X.shape[0], -1, 1)
                 X_vector = X.reshape(X.shape[0], -1, 1)
-                observed_I = np.sum(
-                    X_vector @ score_vector.transpose(0, 2, 1) @ score_vector @ X_vector.transpose(0, 2, 1),
-                    axis=0
+                empirical_I = np.sum(
+                    X_vector
+                    @ score_vector.transpose(0, 2, 1)
+                    @ score_vector
+                    @ X_vector.transpose(0, 2, 1),
+                    axis=0,
                 )
 
-            # Select information matrix based on expected or observed
-            information_matrix = expected_I if self.information == "expected" else observed_I
+            # Select information matrix based on expected or empirical
+            information_matrix = (
+                expected_I if self.information == "expected" else empirical_I
+            )
             self.information_matrix["iteration"].append(iteration)
             self.information_matrix["information"].append(information_matrix)
 
@@ -341,7 +349,9 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
 
             if method == "logit":
                 # Gradient for linear logit confidence intervals
-                std_errors = np.array([np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X])
+                std_errors = np.array(
+                    [np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X]
+                )
                 lower_logit = logits_k - z_crit * std_errors
                 upper_logit = logits_k + z_crit * std_errors
 
@@ -365,7 +375,9 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
             else:
                 raise ValueError(f"Unknown method: {method}. Use 'logit' or 'proba'.")
 
-            ci_results[class_idx] = np.vstack((lower_ci, upper_ci)).T  # Shape: (n_samples, 2)
+            ci_results[class_idx] = np.vstack(
+                (lower_ci, upper_ci)
+            ).T  # Shape: (n_samples, 2)
 
         return ci_results
 
@@ -381,7 +393,7 @@ class FisherScoringMultinomialRegression(BaseEstimator, ClassifierMixin):
 
     def set_params(
         self, **params: Union[float, int, str, bool]
-    ) -> "FisherScoringMultinomialRegression":
+    ) -> MultinomialLogisticRegression:
         for key, value in params.items():
             setattr(self, key, value)
         return self

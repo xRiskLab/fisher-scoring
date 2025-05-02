@@ -1,22 +1,25 @@
+"""test_fisher_scoring_multinomial.py."""
+
 import unittest
 
 import numpy as np
-from fisher_scoring_multinomial import FisherScoringMultinomialRegression
+from fisher_scoring.fisher_scoring_multinomial import MultinomialLogisticRegression
 from sklearn.exceptions import NotFittedError
 
 
-class TestFisherScoringMultinomialRegression(
-    unittest.TestCase
-):
+class TestMultinomialLogisticRegression(unittest.TestCase):
+    """Unit tests for the Fisher Scoring Multinomial Logistic Regression model."""
 
     def setUp(self):
-        self.model = FisherScoringMultinomialRegression()
+        """Set up the test case."""
+        self.model = MultinomialLogisticRegression()
         # Generate a synthetic dataset with 3 classes
         np.random.seed(0)
         self.X = np.random.rand(100, 5)
         self.y = np.random.randint(0, 3, 100)
 
     def test_fit_sets_is_fitted(self):
+        """Test that the model is fitted after calling fit."""
         self.assertFalse(
             self.model.is_fitted_,
             "The model should not be fitted initially.",
@@ -28,14 +31,17 @@ class TestFisherScoringMultinomialRegression(
         )
 
     def test_predict_raises_not_fitted_error(self):
+        """Test that predict raises NotFittedError if the model is not fitted."""
         with self.assertRaises(NotFittedError):
             self.model.predict(self.X)
 
     def test_predict_proba_raises_not_fitted_error(self):
+        """Test that predict_proba raises NotFittedError if the model is not fitted."""
         with self.assertRaises(NotFittedError):
             self.model.predict_proba(self.X)
 
     def test_fit_predict(self):
+        """Test the fit and predict methods."""
         self.model.fit(self.X, self.y)
         predictions = self.model.predict(self.X)
         self.assertEqual(
@@ -49,6 +55,7 @@ class TestFisherScoringMultinomialRegression(
         )
 
     def test_fit_predict_proba(self):
+        """Test the fit and predict_proba methods."""
         self.model.fit(self.X, self.y)
         probabilities = self.model.predict_proba(self.X)
         self.assertEqual(
@@ -57,12 +64,12 @@ class TestFisherScoringMultinomialRegression(
             "Probabilities shape should match the number of samples and classes.",
         )
         self.assertTrue(
-            (probabilities >= 0).all()
-            and (probabilities <= 1).all(),
+            (probabilities >= 0).all() and (probabilities <= 1).all(),
             "Probabilities should be between 0 and 1.",
         )
 
     def test_predict_ci(self):
+        """Test the predict_ci method."""
         self.model.fit(self.X, self.y)
         # Test "logit" confidence intervals
         ci_logit = self.model.predict_ci(self.X, method="logit")
@@ -105,6 +112,7 @@ class TestFisherScoringMultinomialRegression(
                 (ci >= 0).all() and (ci <= 1).all(),
                 f"Probability CIs for class {class_idx} should lie between 0 and 1.",
             )
+
 
 if __name__ == "__main__":
     unittest.main()

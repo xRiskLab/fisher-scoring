@@ -1,21 +1,22 @@
 """
-Fisher Scoring Logistic Regression
+fisher_scoring_logistic.py.
+
+Logistic Regression
 ----------------------------------
 
 Author: xRiskLab (deburky)
-GitHub: https://github.com/xRiskLab
-Version: 2.0.3 (2024)
+GitHub: https://github.com/xRiskLab)
 License: MIT
 
 Description:
-This module contains the `FisherScoringLogisticRegression` class, which is a custom
+This module contains the `LogisticRegression` class, which is a custom
 implementation of logistic regression using the Fisher scoring algorithm. The
 Fisher scoring algorithm is an iterative optimization algorithm that uses the
-observed or expected information matrix to update the model parameters. The class provides
+empirical or expected information matrix to update the model parameters. The class provides
 methods for fitting the model, making predictions, and computing model statistics.
 
-We provide two types of information matrices: 'expected' and 'observed'. The 'expected'
-information matrix is computed using the Hessian matrix, while the 'observed' information
+We provide two types of information matrices: 'expected' and 'empirical'. The 'expected'
+information matrix is computed using the Hessian matrix, while the 'empirical' information
 matrix is computed using the outer product of the score vectors (variance of the score).
 
 If `use_bias` is set to True, the model will include a bias term in the logistic regression
@@ -36,6 +37,8 @@ Yudi Pawitan. In All Likelihood: Statistical Modelling and Inference Using Likel
 Press, 2001.
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -49,7 +52,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
+class LogisticRegression(BaseEstimator, ClassifierMixin):
     """
     Fisher Scoring Logistic Regression class.
     """
@@ -114,7 +117,11 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
             print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
-    def fit(self, X: np.ndarray, y: np.ndarray,) -> "FisherScoringLogisticRegression":
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+    ) -> LogisticRegression:
         """Fit the logistic regression model using Fisher scoring."""
         if isinstance(X, pd.DataFrame):
             self.feature_names = X.columns.tolist()
@@ -141,14 +148,15 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
                 W_diag = (p * (1 - p)).ravel()
                 information_matrix = (X.T * W_diag) @ X
             else:
-                # Observed Fisher Information matrix
+                # Empirical Fisher Information matrix
                 score_vector = (y - p).reshape(X.shape[0], 1, 1)
                 X_vector = X.reshape(X.shape[0], -1, 1)
                 information_matrix = np.sum(
                     X_vector
                     @ score_vector.transpose(0, 2, 1)
-                    @ score_vector @ X_vector.transpose(0, 2, 1),
-                    axis=0
+                    @ score_vector
+                    @ X_vector.transpose(0, 2, 1),
+                    axis=0,
                 )
 
             self.information_matrix["iteration"].append(iteration)
@@ -254,10 +262,12 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
 
         if method == "logit":
             # Gradient for linear logit confidence intervals
-            std_errors = np.array([np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X])
+            std_errors = np.array(
+                [np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X]
+            )
             lower_proba = self.logistic_function(logit - z_crit * std_errors)
             upper_proba = self.logistic_function(logit + z_crit * std_errors)
-        elif method == 'proba':  # Probability confidence intervals
+        elif method == "proba":  # Probability confidence intervals
             gradients = (proba * (1 - proba))[:, None] * X  # Element-wise gradient
             std_errors = np.sqrt(np.sum(gradients @ cov_matrix * gradients, axis=1))
             lower_proba = np.clip(proba - z_crit * std_errors, 0, 1)
@@ -276,9 +286,7 @@ class FisherScoringLogisticRegression(BaseEstimator, ClassifierMixin):
             "use_bias": self.use_bias,
         }
 
-    def set_params(
-        self, **params: Union[float, int, str, bool]
-    ) -> "FisherScoringLogisticRegression":
+    def set_params(self, **params: Union[float, int, str, bool]) -> LogisticRegression:
         for key, value in params.items():
             setattr(self, key, value)
         return self

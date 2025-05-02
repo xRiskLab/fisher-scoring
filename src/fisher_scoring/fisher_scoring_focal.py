@@ -1,10 +1,11 @@
 """
-Fisher Scoring Focal Loss Regression
+fisher_scoring_focal.py.
+
+Focal Loss Regression
 ------------------------------------
 
 Author: xRiskLab (deburky)
 GitHub: https://github.com/xRiskLab
-Version: 2.0.3 (2024)
 License: MIT
 
 Description:
@@ -26,6 +27,8 @@ References:
 - Tsung-Yi Lin et al. "Focal Loss for Dense Object Detection." ICCV 2017.
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -39,7 +42,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
+class FocalLossRegression(BaseEstimator, ClassifierMixin):
     """
     Fisher Scoring Focal Loss Regression class.
     """
@@ -94,7 +97,9 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
         return np.log(np.clip(x, minval, 1 - minval))
 
     @staticmethod
-    def generate_focal_parameter(y: np.ndarray, p: np.ndarray, gamma: float) -> np.ndarray:
+    def generate_focal_parameter(
+        y: np.ndarray, p: np.ndarray, gamma: float
+    ) -> np.ndarray:
         """
         Generate the focal parameter for the focal loss.
         """
@@ -158,13 +163,13 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
             score_vector = (y - p) * X * pt
             score = np.sum(score_vector, axis=0).reshape(-1, 1)
 
-            # Select information matrix based on expected or observed Fisher information
+            # Select information matrix based on expected or empirical Fisher information
             if self.information == "expected":
                 # Expected Fisher Information matrix
                 W_diag = (p * (1 - p) * pt).ravel()
                 information_matrix = (X.T * W_diag) @ X
             else:
-                # Observed Fisher Information matrix
+                # Empirical Fisher Information matrix
                 score_vector = (y - p).reshape(X.shape[0], 1, 1)
                 X_vector = X.reshape(X.shape[0], -1, 1)
                 information_matrix = np.sum(
@@ -173,7 +178,7 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
                     @ score_vector
                     @ X_vector.transpose(0, 2, 1)
                     * pt.reshape(-1, 1, 1),
-                    axis=0
+                    axis=0,
                 )
             self.information_matrix["iteration"].append(iteration)
             self.information_matrix["information"].append(information_matrix)
@@ -213,7 +218,9 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
         """
         Compute the standard errors, Wald statistic, p-values, and confidence intervals.
         """
-        information_matrix = self.information_matrix["information"][-1]  # Information at the MLE
+        information_matrix = self.information_matrix["information"][
+            -1
+        ]  # Information at the MLE
 
         information_matrix_inv = self.invert_matrix(information_matrix)
 
@@ -276,10 +283,12 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
 
         if method == "logit":
             # Gradient for linear logit confidence intervals
-            std_errors = np.array([np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X])
+            std_errors = np.array(
+                [np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X]
+            )
             lower_proba = self.logistic_function(logit - z_crit * std_errors)
             upper_proba = self.logistic_function(logit + z_crit * std_errors)
-        elif method == 'proba':  # Probability confidence intervals
+        elif method == "proba":  # Probability confidence intervals
             gradients = (proba * (1 - proba))[:, None] * X  # Element-wise gradient
             std_errors = np.sqrt(np.sum(gradients @ cov_matrix * gradients, axis=1))
             lower_proba = np.clip(proba - z_crit * std_errors, 0, 1)
@@ -299,7 +308,7 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
             "verbose": self.verbose,
         }
 
-    def set_params(self, **params: Union[float, int, str, bool]) -> "FisherScoringFocalRegression":
+    def set_params(self, **params: Union[float, int, str, bool]) -> FocalLossRegression:
         for key, value in params.items():
             setattr(self, key, value)
         return self
@@ -341,7 +350,9 @@ class FisherScoringFocalRegression(BaseEstimator, ClassifierMixin):
 
         if self.feature_names:
             param_names = (
-                ["intercept (bias)"] + self.feature_names if self.use_bias else self.feature_names
+                ["intercept (bias)"] + self.feature_names
+                if self.use_bias
+                else self.feature_names
             )
         else:
             param_names = [f"Beta {i}" for i in range(len(summary_dict["betas"]))]
