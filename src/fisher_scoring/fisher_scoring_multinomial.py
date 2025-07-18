@@ -13,9 +13,6 @@ logistic regression. The Fisher Scoring algorithm is an iterative optimization
 algorithm that is used to estimate the parameters of a multinomial logistic
 regression model.
 
-The algorithm is based on the Newton-Raphson method and uses the expected or
-empirical Fisher information matrix to update the model parameters.
-
 Additionally we provide a method to compute the standard errors, Wald statistic,
 p-values, and confidence intervals for each class.
 
@@ -142,7 +139,7 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
                 # Expected Fisher Information matrix
                 W_diag = (p * (1 - p)).sum(axis=1)
                 expected_I = (X.T * W_diag) @ X
-            else:
+            elif self.information == "empirical":
                 # Empirical Fisher Information matrix
                 score_vector = (y_one_hot - p).reshape(X.shape[0], -1, 1)
                 X_vector = X.reshape(X.shape[0], -1, 1)
@@ -152,6 +149,10 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
                     @ score_vector
                     @ X_vector.transpose(0, 2, 1),
                     axis=0,
+                )
+            else:
+                raise ValueError(
+                    f"Unknown Fisher Information type: {self.information}. Use 'expected' or 'empirical'."
                 )
 
             # Select information matrix based on expected or empirical

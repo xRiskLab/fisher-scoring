@@ -4,6 +4,7 @@ from .fisher_scoring_focal import FocalLossRegression
 from .fisher_scoring_logistic import LogisticRegression
 from .fisher_scoring_multinomial import MultinomialLogisticRegression
 from .fisher_scoring_poisson import NegativeBinomialRegression, PoissonRegression
+from .fisher_scoring_robust import RobustLogisticRegression
 
 # Set up logging
 logging.basicConfig(level=logging.WARNING)
@@ -41,6 +42,7 @@ __all__ = [
     "FocalLossRegression",
     "PoissonRegression",
     "NegativeBinomialRegression",
+    "RobustLogisticRegression",
 ]
 
 # Add dynamic version retrieval

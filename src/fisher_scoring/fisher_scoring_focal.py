@@ -133,7 +133,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
             print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "FisherScoringFocalRegression":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> FocalLossRegression:
         """
         Fit the focal logistic regression model using Fisher scoring.
         """
@@ -168,7 +168,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
                 # Expected Fisher Information matrix
                 W_diag = (p * (1 - p) * pt).ravel()
                 information_matrix = (X.T * W_diag) @ X
-            else:
+            elif self.information == "empirical":
                 # Empirical Fisher Information matrix
                 score_vector = (y - p).reshape(X.shape[0], 1, 1)
                 X_vector = X.reshape(X.shape[0], -1, 1)
@@ -180,6 +180,11 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
                     * pt.reshape(-1, 1, 1),
                     axis=0,
                 )
+            else:
+                raise ValueError(
+                    f"Unknown Fisher Information type: {self.information}. Use 'expected' or 'empirical'."
+                )
+
             self.information_matrix["iteration"].append(iteration)
             self.information_matrix["information"].append(information_matrix)
 
@@ -333,7 +338,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
         summary_dict = self.summary()
 
         total_iterations = len(self.information_matrix["iteration"])
-        table = Table(title="Fisher Scoring Focal Logistic Regression Summary")
+        table = Table(title="Fisher Scoring Focal Loss Logistic Regression Summary")
 
         table.add_column(
             "Parameter",
