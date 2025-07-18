@@ -1,7 +1,7 @@
 # Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**Version:** v2.0.4<br>
+**Version:** v2.0.5<br>
 **License:** [MIT License](https://opensource.org/licenses/MIT) (2025)
 
 ![Title](https://github.com/xRiskLab/fisher-scoring/raw/main/docs/images/title.png)
@@ -10,15 +10,27 @@ This repository contains optimized Python implementations of the Fisher Scoring 
 
 ```python
 %pip install fisher-scoring
-from fisher_scoring import LogisticRegression
+from fisher_scoring import LogisticRegression, RobustLogisticRegression, PoissonRegression
 
-# Initialize and fit model
+# Binary Classification
 model = LogisticRegression()
 model.fit(X_train, y_train)
-
-# Make predictions
 predictions = model.predict(X_test)
-probabilities = model.predict_proba(X_test)
+model.display_summary()  # Rich formatted output
+
+# Robust Classification (outlier-resistant)
+robust_model = RobustLogisticRegression(epsilon_contamination=0.05)
+robust_model.fit(X_train_contaminated, y_train_contaminated)
+robust_model.display_summary()  # Rich formatted output with robustness metrics
+
+# Count Data with Rate Modeling  
+import numpy as np
+exposure_times = np.random.uniform(0.5, 3.0, len(y_train))
+offset = np.log(exposure_times)  # Log exposure for rate modeling
+
+poisson_model = PoissonRegression(offset=offset, information="empirical")
+poisson_model.fit(X_train, y_train)
+poisson_model.display_summary()  # Rich formatted output
 ```
 
 ## Overview
@@ -27,12 +39,13 @@ probabilities = model.predict_proba(X_test)
 
 This repository contains a Python package with scikit-learn compatible implementations of the Fisher Scoring algorithm for various modeling problems.
 
-The packages provides implementations of logistic regression (MLE for binary, multiclass, and binary imbalanced) for proportions (risk or prevalence) and Poisson and Negative Binomial regression for log-linear regression for incidence rates.
+The packages provides implementations of logistic regression (MLE for binary, multiclass, and binary imbalanced) for proportions (risk or prevalence), robust logistic regression for outlier-resistant classification, and Poisson and Negative Binomial regression for log-linear regression for incidence rates.
 
 1. Binary classification problems: **Logistic Regression**.
-2. Multi-class classification problems: **Multinomial Logistic Regression**.
-3. Imbalanced classification problems: **Focal Loss Logistic Regression**.
-4. Count modeling problems: **Poisson Regression** and **Negative Binomial Regression**.
+2. Robust binary classification problems: **Robust Logistic Regression**.
+3. Multi-class classification problems: **Multinomial Logistic Regression**.
+4. Imbalanced classification problems: **Focal Loss Logistic Regression**.
+5. Count modeling problems: **Poisson Regression** and **Negative Binomial Regression**.
 
 ### Fisher Scoring Algorithm
 
@@ -81,6 +94,36 @@ The `LogisticRegression` class is a custom implementation of logistic regression
 - `summary()`: Get a summary of model parameters, standard errors, p-values, and confidence intervals.
 - `display_summary()`: Display a summary of model parameters, standard errors, p-values, and confidence intervals.
 
+### Robust Logistic Regression
+
+The `RobustLogisticRegression` class implements robust logistic regression using the Fisher scoring algorithm with epsilon-contamination for outlier resistance. This method down-weights observations that are unlikely under the main model, providing robustness against data contamination and outliers.
+
+**Parameters:**
+- `epsilon_contamination`: Contamination level (0 ≤ ε ≤ 1). Higher values provide more robustness but may reduce efficiency (default: 0.05).
+- `contamination_prob`: Probability for contamination distribution (default: 0.5).
+- `tol`: Convergence tolerance for parameter updates.
+- `max_iter`: Maximum number of iterations for the algorithm.
+- `information`: Type of information matrix to use ('expected' or 'empirical').
+- `use_bias`: Include a bias term in the model.
+- `significance`: Significance level for computing confidence intervals.
+
+**Methods:**
+- `fit(X, y)`: Fit the robust model to the data with automatic outlier down-weighting.
+- `predict(X)`: Predict target labels for input data.
+- `predict_proba(X)`: Predict class probabilities for input data.
+- `predict_ci(X)`: Predict class probabilities with confidence intervals.
+- `get_params()`: Get model parameters.
+- `set_params(**params)`: Set model parameters.
+- `summary()`: Get a summary of model parameters, standard errors, p-values, confidence intervals, and robust weights.
+- `display_summary()`: Display a comprehensive summary including robustness metrics (epsilon contamination, average/minimum robust weights).
+
+**Key Features:**
+- **Outlier Resistance**: Automatic down-weighting of observations unlikely under the main model.
+- **Robust Weights**: Access to individual observation weights showing outlier identification.
+- **Fisher Scoring Framework**: Consistent with other models using both expected and empirical information matrices.
+- **Statistical Inference**: Complete inference statistics with robust standard errors and confidence intervals.
+- **Rich Output**: Beautiful formatted summaries with robust-specific metrics and diagnostics.
+
 ### Multinomial Logistic Regression
 
 The `MultinomialLogisticRegression` class implements the Fisher Scoring algorithm for multinomial logistic regression, suitable for multi-class classification tasks.
@@ -127,34 +170,58 @@ The `FocalLossRegression` class implements the Fisher Scoring algorithm with foc
 
 ### Poisson Regression
 
-The `PoissonRegression` class implements the Fisher Scoring algorithm for Poisson regression, suitable for modeling count data.
+The `PoissonRegression` class implements the Fisher Scoring algorithm for Poisson regression, suitable for modeling count data and incidence rates. Features robust matrix operations with automatic fallback to pseudo-inverse for numerical stability.
 
 **Parameters:**
 - `max_iter`: Maximum number of iterations for optimization.
 - `epsilon`: Convergence tolerance.
 - `use_bias`: Whether to include an intercept term.
+- `offset`: Offset term for rate modeling (e.g., log exposure times).
+- `significance`: Significance level for confidence intervals.
+- `information`: Type of information matrix to use ('expected' or 'empirical').
 
 **Methods:**
 - `fit(X, y)`: Fit the model to the data.
-- `predict(X)`: Predict mean values for the Poisson model.
+- `predict(X, offset=None)`: Predict mean values with optional custom offset.
 - `calculate_st_errors(X)`: Calculate standard errors for the coefficients.
+- `summary()`: Get comprehensive model statistics including coefficients, standard errors, p-values, and confidence intervals.
+- `display_summary()`: Display beautiful formatted summary with Rich styling.
+
+**Key Features:**
+- **Offset Support**: Full support for rate modeling with log exposure times.
+- **Information Matrix Choice**: Both expected and empirical Fisher information matrices supported.
+- **Robust Implementation**: Safe matrix inversion with automatic pseudo-inverse fallback.
+- **Statistical Summaries**: Complete inference statistics with Wald tests and confidence intervals.
+- **Validated Accuracy**: Mathematical correctness verified against statsmodels with machine precision accuracy.
 
 ### Negative Binomial Regression
 
-The `NegativeBinomialRegression` class implements the Fisher Scoring algorithm for Negative Binomial regression, suitable for overdispersed count data.
+The `NegativeBinomialRegression` class implements the Fisher Scoring algorithm for Negative Binomial regression, suitable for overdispersed count data. Features enhanced robustness with comprehensive statistical inference and fixed critical implementation bugs.
 
 **Parameters:**
 - `max_iter`: Maximum number of iterations for optimization.
 - `epsilon`: Convergence tolerance.
 - `use_bias`: Whether to include an intercept term.
-- `alpha`: Fixed dispersion parameter (overdispersion adjustment for Negative Binomial).
+- `alpha`: Fixed dispersion parameter (overdispersion adjustment).
 - `phi`: Constant scale parameter.
 - `offset`: Offset term for the linear predictor.
+- `significance`: Significance level for confidence intervals.
+- `information`: Type of information matrix to use ('expected' or 'empirical').
 
 **Methods:**
 - `fit(X, y)`: Fit the model to the data.
-- `predict(X)`: Predict mean values for the Negative Binomial model.
-- `calculate_st_errors(X)`: Calculate standard errors for the coefficients.
+- `predict(X, offset=None)`: Predict mean values with proper offset handling.
+- `calculate_st_errors(X)`: Calculate standard errors with corrected implementation.
+- `summary()`: Get comprehensive model statistics including coefficients, standard errors, p-values, and confidence intervals.
+- `display_summary()`: Display beautiful formatted summary with Rich styling.
+
+**Key Improvements:**
+- **Fisher Scoring Conversion**: Converted from IWLS to proper Fisher scoring for consistency.
+- **Information Matrix Choice**: Both expected and empirical Fisher information matrices supported (empirical recommended for numerical stability).
+- **Bug Fixes**: Fixed missing offset in prediction and standard error calculations.
+- **Robust Implementation**: Safe matrix inversion with automatic pseudo-inverse fallback.
+- **Statistical Summaries**: Complete inference statistics with Wald tests and confidence intervals.
+- **Enhanced Reliability**: Comprehensive testing ensures mathematical correctness.
 
 ## Utilities
 
@@ -175,6 +242,15 @@ The package includes a utility function for visualizing observed vs predicted pr
 - `ax`: Matplotlib axis to plot on.
 
 ## Change Log
+
+- **v2.0.5**
+  - **New**: Added `RobustLogisticRegression` class with epsilon-contamination for outlier-resistant classification.
+  - **Enhanced**: Poisson and Negative Binomial regression with empirical Fisher information matrix support.
+  - **Enhanced**: Converted Negative Binomial from IWLS to proper Fisher scoring for consistency.
+  - **Added**: Comprehensive offset support for Poisson regression rate modeling.
+  - **Fixed**: Critical bugs in Negative Binomial prediction and standard error calculations.
+  - **Added**: `summary()` and `display_summary()` methods with rich statistical output.
+  - **Validated**: Mathematical correctness verified against statsmodels with machine precision accuracy.
 
 - **v2.0.4**
   - Added a beta version of Poisson and Negative Binomial regression using Fisher Scoring.

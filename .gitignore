@@ -1,6 +1,7 @@
 .DS_Store
 **/.DS_Store/
 .pytest_cache/
+.ruff_cache/
 **/.pytest_cache/
 __pycache__/
 **/__pycache__/
@@ -13,3 +14,4 @@ __pycache__/
 # Hide egg-info
 *.egg-info/
 dist/
+.env

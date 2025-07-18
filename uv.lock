@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "fisher-scoring"
-version = "2.0.4"
+version = "2.0.5"
 source = { virtual = "." }
 dependencies = [
     { name = "numpy" },
