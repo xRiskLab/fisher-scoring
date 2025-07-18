@@ -10,27 +10,17 @@ This repository contains optimized Python implementations of the Fisher Scoring 
 
 ```python
 %pip install fisher-scoring
-from fisher_scoring import LogisticRegression, RobustLogisticRegression, PoissonRegression
+from fisher_scoring import LogisticRegression
 
 # Binary Classification
 model = LogisticRegression()
 model.fit(X_train, y_train)
 predictions = model.predict(X_test)
-model.display_summary()  # Rich formatted output
+probabilities = model.predict_proba(X_test)
+confidence_intervals = model.predict_ci(X_test)
 
-# Robust Classification (outlier-resistant)
-robust_model = RobustLogisticRegression(epsilon_contamination=0.05)
-robust_model.fit(X_train_contaminated, y_train_contaminated)
-robust_model.display_summary()  # Rich formatted output with robustness metrics
-
-# Count Data with Rate Modeling  
-import numpy as np
-exposure_times = np.random.uniform(0.5, 3.0, len(y_train))
-offset = np.log(exposure_times)  # Log exposure for rate modeling
-
-poisson_model = PoissonRegression(offset=offset, information="empirical")
-poisson_model.fit(X_train, y_train)
-poisson_model.display_summary()  # Rich formatted output
+model.summary()
+model.display_summary()
 ```
 
 ## Overview
