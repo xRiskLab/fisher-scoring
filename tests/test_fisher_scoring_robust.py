@@ -332,22 +332,30 @@ class TestRobustLogisticRegression(unittest.TestCase):
         # Both should identify outliers similarly (robust weights)
         self.assertIsNotNone(model_expected.weights)
         self.assertIsNotNone(model_empirical.weights)
-        
+
         # Check that both models down-weight outliers
         expected_outlier_weights = model_expected.weights[outlier_indices]
         empirical_outlier_weights = model_empirical.weights[outlier_indices]
         expected_normal_weights = np.delete(model_expected.weights, outlier_indices)
         empirical_normal_weights = np.delete(model_empirical.weights, outlier_indices)
-        
+
         # Outliers should have lower weights than normal observations for both methods
-        self.assertLess(np.mean(expected_outlier_weights), np.mean(expected_normal_weights))
-        self.assertLess(np.mean(empirical_outlier_weights), np.mean(empirical_normal_weights))
+        self.assertLess(
+            np.mean(expected_outlier_weights), np.mean(expected_normal_weights)
+        )
+        self.assertLess(
+            np.mean(empirical_outlier_weights), np.mean(empirical_normal_weights)
+        )
 
         print(f"🧪 Robust Expected coefficients: {model_expected.beta}")
         print(f"🧪 Robust Empirical coefficients: {model_empirical.beta}")
         print(f"🧪 Robust Coefficient difference (L2): {coeff_diff:.6f}")
-        print(f"🧪 Expected avg outlier weight: {np.mean(expected_outlier_weights):.4f}")
-        print(f"🧪 Empirical avg outlier weight: {np.mean(empirical_outlier_weights):.4f}")
+        print(
+            f"🧪 Expected avg outlier weight: {np.mean(expected_outlier_weights):.4f}"
+        )
+        print(
+            f"🧪 Empirical avg outlier weight: {np.mean(empirical_outlier_weights):.4f}"
+        )
 
     def test_no_bias_option(self):
         """Test that the model works without bias term."""

@@ -256,11 +256,11 @@ class TestNegativeBinomialRegression(unittest.TestCase):
         model = NegativeBinomialRegression(
             use_bias=True, offset=offset_values, max_iter=30, epsilon=1e-6
         )
-        
+
         # Try to fit, but handle potential numerical issues with Fisher scoring
         try:
             model.fit(X, y)
-            
+
             # Predictions should include the offset
             pred_with_offset = model.predict(X)
             pred_without_offset = model.predict(X, offset=np.zeros(X.shape[0]))
@@ -268,7 +268,9 @@ class TestNegativeBinomialRegression(unittest.TestCase):
             # These should be different since offset values are non-zero
             # Use a more robust check that handles potential numerical issues
             # sourcery skip: no-conditionals-in-tests
-            if np.all(np.isfinite(pred_with_offset)) and np.all(np.isfinite(pred_without_offset)):
+            if np.all(np.isfinite(pred_with_offset)) and np.all(
+                np.isfinite(pred_without_offset)
+            ):
                 self.assertFalse(
                     np.allclose(pred_with_offset, pred_without_offset, rtol=1e-2),
                     "Predictions with and without offset should differ when offset is non-zero",
@@ -288,16 +290,22 @@ class TestNegativeBinomialRegression(unittest.TestCase):
             self.assertEqual(len(std_errors), X.shape[1] + (1 if model.use_bias else 0))
             # Handle numerical issues - some standard errors might be problematic due to Fisher scoring
             if np.all(np.isfinite(std_errors)):
-                self.assertTrue(np.all(std_errors > 0), "Standard errors should be positive")
+                self.assertTrue(
+                    np.all(std_errors > 0), "Standard errors should be positive"
+                )
             else:
                 # If there are numerical issues, just check that we got some values
                 self.assertIsNotNone(std_errors)
-                self.assertEqual(len(std_errors), X.shape[1] + (1 if model.use_bias else 0))
-            
+                self.assertEqual(
+                    len(std_errors), X.shape[1] + (1 if model.use_bias else 0)
+                )
+
         except (np.linalg.LinAlgError, RuntimeWarning):
             # If numerical issues occur, just pass the test
             # The Fisher scoring conversion may have numerical stability differences
-            self.skipTest("Numerical issues with Fisher scoring - this is expected for some data")
+            self.skipTest(
+                "Numerical issues with Fisher scoring - this is expected for some data"
+            )
 
     def test_negative_binomial_offset_equivalence_with_original(self):
         """Test that NB regression with zero offset behaves consistently."""
@@ -307,24 +315,28 @@ class TestNegativeBinomialRegression(unittest.TestCase):
 
         # Test that zero offset gives consistent results
         # (replacing the old IWLS vs Fisher scoring comparison)
-        
+
         # Model with explicit zero offset
         model_zero_offset = NegativeBinomialRegression(
-            use_bias=True, offset=np.zeros(X.shape[0]), max_iter=30, epsilon=1e-6, alpha=0.3
+            use_bias=True,
+            offset=np.zeros(X.shape[0]),
+            max_iter=30,
+            epsilon=1e-6,
+            alpha=0.3,
         )
-        
+
         # Model with None offset (should default to zeros)
         model_none_offset = NegativeBinomialRegression(
             use_bias=True, offset=None, max_iter=30, epsilon=1e-6, alpha=0.3
         )
-        
+
         try:
             model_zero_offset.fit(X, y)
             model_none_offset.fit(X, y)
-            
+
             pred_zero = model_zero_offset.predict(X)
             pred_none = model_none_offset.predict(X)
-            
+
             # Both should give similar results since both use zero offset
             # sourcery skip: no-conditionals-in-tests
             if np.all(np.isfinite(pred_zero)) and np.all(np.isfinite(pred_none)):
@@ -338,10 +350,12 @@ class TestNegativeBinomialRegression(unittest.TestCase):
             else:
                 # If numerical issues, just verify shapes
                 self.assertEqual(len(pred_zero), len(pred_none))
-                
+
         except (np.linalg.LinAlgError, RuntimeWarning):
             # Handle numerical issues gracefully
-            self.skipTest("Numerical issues with Fisher scoring - expected for some data configurations")
+            self.skipTest(
+                "Numerical issues with Fisher scoring - expected for some data configurations"
+            )
 
     def test_poisson_information_matrix_comparison(self):
         """Test that PoissonRegression expected vs empirical information matrices give reasonable results."""
@@ -387,12 +401,16 @@ class TestNegativeBinomialRegression(unittest.TestCase):
 
         self.assertEqual(len(pred_expected), 20)
         self.assertEqual(len(pred_empirical), 20)
-        self.assertTrue(np.all(pred_expected >= 0))  # Poisson predictions should be non-negative
+        self.assertTrue(
+            np.all(pred_expected >= 0)
+        )  # Poisson predictions should be non-negative
         self.assertTrue(np.all(pred_empirical >= 0))
 
         print(f"🧪 Poisson Expected coefficients: {model_expected.weights}")
         print(f"🧪 Poisson Empirical coefficients: {model_empirical.weights}")
-        print(f"🧪 Poisson Coefficient difference (L2): {np.linalg.norm(model_expected.weights - model_empirical.weights):.6f}")
+        print(
+            f"🧪 Poisson Coefficient difference (L2): {np.linalg.norm(model_expected.weights - model_empirical.weights):.6f}"
+        )
 
     def test_negative_binomial_information_matrix_comparison(self):
         """Test that NegativeBinomialRegression expected vs empirical information matrices give reasonable results."""
@@ -401,7 +419,7 @@ class TestNegativeBinomialRegression(unittest.TestCase):
         true_beta = np.array([1.0, 0.5, -0.3])  # Including intercept
         eta = X @ true_beta[1:] + true_beta[0]
         mu = np.exp(eta)
-        
+
         # Generate NB data (approximate as Poisson for simplicity)
         y = np.random.poisson(mu)
 
@@ -428,10 +446,14 @@ class TestNegativeBinomialRegression(unittest.TestCase):
         # Just verify that both methods produce reasonable results (not NaN/Inf)
         self.assertTrue(np.all(np.isfinite(model_expected.weights)))
         self.assertTrue(np.all(np.isfinite(model_empirical.weights)))
-        
+
         # Verify that coefficient differences are not extreme (e.g., > 1000x difference)
-        max_relative_diff = np.max(np.abs((model_expected.weights - model_empirical.weights) / 
-                                         (model_expected.weights + 1e-8)))
+        max_relative_diff = np.max(
+            np.abs(
+                (model_expected.weights - model_empirical.weights)
+                / (model_expected.weights + 1e-8)
+            )
+        )
         self.assertLess(max_relative_diff, 10.0)  # Allow up to 10x relative difference
 
         # Test predictions on new data
@@ -441,22 +463,26 @@ class TestNegativeBinomialRegression(unittest.TestCase):
 
         self.assertEqual(len(pred_expected), 20)
         self.assertEqual(len(pred_empirical), 20)
-        self.assertTrue(np.all(pred_expected >= 0))  # NB predictions should be non-negative
+        self.assertTrue(
+            np.all(pred_expected >= 0)
+        )  # NB predictions should be non-negative
         self.assertTrue(np.all(pred_empirical >= 0))
 
         print(f"🧪 NB Expected coefficients: {model_expected.weights}")
         print(f"🧪 NB Empirical coefficients: {model_empirical.weights}")
-        print(f"🧪 NB Coefficient difference (L2): {np.linalg.norm(model_expected.weights - model_empirical.weights):.6f}")
+        print(
+            f"🧪 NB Coefficient difference (L2): {np.linalg.norm(model_expected.weights - model_empirical.weights):.6f}"
+        )
 
     def test_poisson_invalid_information_type(self):
         """Test that PoissonRegression raises ValueError for invalid information type."""
         model = PoissonRegression(information="invalid")
         X = np.array([[1, 2], [2, 3], [3, 4]])
         y = np.array([1, 2, 3])
-        
+
         with self.assertRaises(ValueError) as context:
             model.fit(X, y)
-        
+
         self.assertIn("Unknown Fisher Information type", str(context.exception))
 
     def test_negative_binomial_invalid_information_type(self):
@@ -464,10 +490,10 @@ class TestNegativeBinomialRegression(unittest.TestCase):
         model = NegativeBinomialRegression(information="invalid")
         X = np.array([[1, 2], [2, 3], [3, 4]])
         y = np.array([1, 2, 3])
-        
+
         with self.assertRaises(ValueError) as context:
             model.fit(X, y)
-        
+
         self.assertIn("Unknown Fisher Information type", str(context.exception))
 
 
