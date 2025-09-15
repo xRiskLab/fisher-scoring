@@ -70,7 +70,7 @@ class TestLogisticRegression(unittest.TestCase):
     def test_predict_ci(self):
         """Test the predict_ci method for both logit and proba."""
         self.model.fit(self.X, self.y)
-        ci_logit = self._predict_ci(
+        self._predict_ci(
             "logit",
             "CI for logits should have shape (n_samples, 2).",
             "Lower CI should not exceed upper CI for logits.",

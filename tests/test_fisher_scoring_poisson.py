@@ -425,8 +425,6 @@ class TestNegativeBinomialRegression(unittest.TestCase):
 
         # Coefficients may differ significantly between expected and empirical methods
         # This is normal for count models where variance assumptions may not hold perfectly
-        coeff_diff = np.linalg.norm(model_expected.weights - model_empirical.weights)
-        
         # Just verify that both methods produce reasonable results (not NaN/Inf)
         self.assertTrue(np.all(np.isfinite(model_expected.weights)))
         self.assertTrue(np.all(np.isfinite(model_empirical.weights)))

@@ -344,7 +344,6 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
 
         ci_results = {}
         for class_idx in range(self.beta.shape[1]):  # Iterate over each class
-            beta_k = self.beta[:, class_idx]
             logits_k = logits[:, class_idx]
             probabilities_k = probabilities[:, class_idx]
 

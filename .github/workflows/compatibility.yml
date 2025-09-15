@@ -62,6 +62,10 @@ jobs:
           uv add "scikit-learn"
         fi
     
+    - name: Install package in development mode
+      run: |
+        uv pip install -e .
+    
     - name: Run compatibility tests
       run: |
         echo "Testing Python ${{ matrix.python-version }} compatibility"

@@ -38,6 +38,7 @@ jobs:
     - name: Install dependencies
       run: |
         uv sync --dev
+        uv pip install -e .
     
     - name: Run tests
       run: |
@@ -70,14 +71,15 @@ jobs:
     - name: Install dependencies
       run: |
         uv sync --dev
+        uv pip install -e .
     
     - name: Run ruff
       run: |
-        uv run ruff check fisher_scoring/ tests/
+        uv run ruff check src/fisher_scoring/ tests/
     
     - name: Run ruff format check
       run: |
-        uv run ruff format --check fisher_scoring/ tests/
+        uv run ruff format --check src/fisher_scoring/ tests/
 
   type-check:
     runs-on: ubuntu-latest
@@ -97,9 +99,10 @@ jobs:
     - name: Install dependencies
       run: |
         uv sync --dev
+        uv pip install -e .
     
     - name: Run mypy (if configured)
       run: |
         # Add mypy configuration and uncomment when ready
-        # uv run mypy fisher_scoring/
+        # uv run mypy src/fisher_scoring/
         echo "Type checking skipped - configure mypy when ready"
