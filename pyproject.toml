@@ -1,6 +1,6 @@
 [project]
 name = "fisher-scoring"
-version = "2.0.5"
+version = "2.0.5.post1"
 description = "A Python implementation of the Fisher Scoring algorithm for proportion and incidence rate modeling."
 authors = [
     { name = "xRiskLab", email = "contact@xrisklab.ai" }

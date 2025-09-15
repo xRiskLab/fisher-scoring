@@ -142,7 +142,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
             self.feature_names = X.columns.tolist()
 
         X = np.array(X)
-        y = np.array(y).reshape(-1, 1)
+        y = np.array(y).reshape(-1)
         n_features = X.shape[1]
 
         # Initialize bias term if use_bias is True
@@ -151,7 +151,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
             n_features += 1
 
         # Initialize weights (beta) to zero
-        self.beta = np.zeros((n_features, 1))
+        self.beta = np.zeros(n_features)
 
         for iteration in range(self.max_iter):
             p = self.logistic_function(X @ self.beta)
@@ -160,8 +160,8 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
             # Adjust weights so that their sum equals the sample size
             pt /= len(y) / np.sum(pt)
 
-            score_vector = (y - p) * X * pt
-            score = np.sum(score_vector, axis=0).reshape(-1, 1)
+            score_vector = (y - p)[:, np.newaxis] * X * pt[:, np.newaxis]
+            score = np.sum(score_vector, axis=0)
 
             # Select information matrix based on expected or empirical Fisher information
             if self.information == "expected":
@@ -171,12 +171,12 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
             elif self.information == "empirical":
                 # Empirical Fisher Information matrix
                 score_vector = (y - p).reshape(X.shape[0], 1, 1)
-                X_vector = X.reshape(X.shape[0], -1, 1)
+                X_vector = X.reshape(X.shape[0], 1, -1)
                 information_matrix = np.sum(
-                    X_vector
-                    @ score_vector.transpose(0, 2, 1)
+                    X_vector.transpose(0, 2, 1)
                     @ score_vector
-                    @ X_vector.transpose(0, 2, 1)
+                    @ score_vector.transpose(0, 2, 1)
+                    @ X_vector
                     * pt.reshape(-1, 1, 1),
                     axis=0,
                 )
@@ -230,18 +230,17 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
         information_matrix_inv = self.invert_matrix(information_matrix)
 
         self.standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
-        betas = self.beta.flatten()
 
         # Handle division by zero
         if self.standard_errors.any() == 0:
             # Raise warning
             print("WARNING: Standard errors are zero. Setting to 1.")
-        self.wald_statistic = betas / self.standard_errors
+        self.wald_statistic = self.beta / self.standard_errors
         self.p_values = 2 * (1 - norm.cdf(np.abs(self.wald_statistic)))
 
         critical_value = norm.ppf(1 - self.significance / 2)
-        self.lower_bound = betas - critical_value * self.standard_errors
-        self.upper_bound = betas + critical_value * self.standard_errors
+        self.lower_bound = self.beta - critical_value * self.standard_errors
+        self.upper_bound = self.beta + critical_value * self.standard_errors
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
@@ -257,7 +256,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
         proba_class_1 = self.logistic_function(X @ self.beta)
-        return np.hstack([1 - proba_class_1, proba_class_1])
+        return np.column_stack([1 - proba_class_1, proba_class_1])
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -280,7 +279,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 
-        logit = (X @ self.beta).flatten()
+        logit = X @ self.beta
         proba = self.logistic_function(logit)
         information_matrix = self.information_matrix["information"][-1]
         cov_matrix = self.invert_matrix(information_matrix)
@@ -320,7 +319,7 @@ class FocalLossRegression(BaseEstimator, ClassifierMixin):
 
     def summary(self) -> Dict[str, np.ndarray]:
         return {
-            "betas": self.beta.flatten(),
+            "betas": self.beta,
             "standard_errors": self.standard_errors,
             "wald_statistic": self.wald_statistic,
             "p_values": self.p_values,

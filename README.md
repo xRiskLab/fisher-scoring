@@ -1,8 +1,13 @@
 # Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**Version:** v2.0.5<br>
 **License:** [MIT License](https://opensource.org/licenses/MIT) (2025)
+
+[![CI](https://github.com/xRiskLab/fisher-scoring/workflows/CI/badge.svg)](https://github.com/xRiskLab/fisher-scoring/actions)
+[![Compatibility](https://github.com/xRiskLab/fisher-scoring/workflows/Python%20Version%20Compatibility/badge.svg)](https://github.com/xRiskLab/fisher-scoring/actions)
+[![PyPI version](https://img.shields.io/pypi/v/fisher-scoring.svg)](https://pypi.org/project/fisher-scoring/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ![Title](https://github.com/xRiskLab/fisher-scoring/raw/main/docs/images/title.png)
 
@@ -231,50 +236,13 @@ The package includes a utility function for visualizing observed vs predicted pr
 - `model_name`: Name of the model for labeling.
 - `ax`: Matplotlib axis to plot on.
 
-## Change Log
+## 📝 Changelog
 
-- **v2.0.5**
-  - **New**: Added `RobustLogisticRegression` class with epsilon-contamination for outlier-resistant classification.
-  - **Enhanced**: Poisson and Negative Binomial regression with empirical Fisher information matrix support.
-  - **Enhanced**: Converted Negative Binomial from IWLS to proper Fisher scoring for consistency.
-  - **Added**: Comprehensive offset support for Poisson regression rate modeling.
-  - **Fixed**: Critical bugs in Negative Binomial prediction and standard error calculations.
-  - **Added**: `summary()` and `display_summary()` methods with rich statistical output.
-  - **Validated**: Mathematical correctness verified against statsmodels with machine precision accuracy.
+For a changelog, see [CHANGELOG](CHANGELOG.md).
 
-- **v2.0.4**
-  - Added a beta version of Poisson and Negative Binomial regression using Fisher Scoring.
-  - Changed naming conventions for simplicity and consistency.
-  - Changed poetry to uv for packaging.
+> [!NOTE]  
+> This package is in a beta release mode. The API is not considered stable for production use.
 
-- **v2.0.3**
-  - Added a new functionality of inference of mean responses with confidence intervals for all algorithms.
-  - Focal logistic regression now supports all model statistics, including standard errors, Wald statistics, p-values, and confidence intervals.
+## 📄 License
 
-- **v2.0.2**
-  - **Bug Fixes**: Fixed the `MultinomialLogisticRegression` class to have flexible NumPy data types.
-
-- **v2.0.1**
-  - **Bug Fixes**: Removed the debug print statement from the `LogisticRegression` class.
-
-- **v2.0**
-  - **Performance Improvements**: Performance Enhancements: Optimized matrix calculations for substantial speed and memory efficiency improvements across all models. Leveraging streamlined operations, this version achieves up to 290x faster convergence. Performance gains per model:
-    - *Multinomial Logistic Regression*: Training time reduced from 125.10s to 0.43s (~290x speedup).
-    - *Logistic Regression*: Training time reduced from 0.24s to 0.05s (~5x speedup).
-    - *Focal Loss Logistic Regression*: Training time reduced from 0.26s to 0.01s (~26x speedup).
-  - **Bug Fixes**: `verbose` parameter in Focal Loss Logistic Regression now functions as expected, providing accurate logging during training.
-
-- **v0.1.4**
-  - Updated log likelihood for Multinomial Regression and minor changes to Logistic Regression for integration with scikit-learn.
-
-- **v0.1.3**
-  - Added coefficients, standard errors, p-values, and confidence intervals for Multinomial Regression.
-
-- **v0.1.2**
-  - Updated NumPy dependency.
-
-- **v0.1.1**
-  - Added support for Python 3.9+ 🐍.
-
-- **v0.1.0**
-  - Initial release of Fisher Scoring Logistic, Multinomial, and Focal Loss Regression.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

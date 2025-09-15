@@ -127,7 +127,7 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
             self.feature_names = X.columns.tolist()
 
         X = np.array(X)
-        y = np.array(y).reshape(-1, 1)
+        y = np.array(y).reshape(-1)
 
         self.classes_ = np.unique(y)
 
@@ -136,12 +136,12 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 
         # Initialize weights (beta) to zero
-        self.beta = np.zeros((X.shape[1], 1))
+        self.beta = np.zeros(X.shape[1])
 
         for iteration in range(self.max_iter):
             p = self.logistic_function(X @ self.beta)
-            score_vector = (y - p) * X
-            score = np.sum(score_vector, axis=0).reshape(-1, 1)
+            score_vector = (y - p)[:, np.newaxis] * X
+            score = np.sum(score_vector, axis=0)
 
             if self.information == "expected":
                 # Expected Fisher Information matrix
@@ -150,12 +150,12 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
             elif self.information == "empirical":
                 # Empirical Fisher Information matrix
                 score_vector = (y - p).reshape(X.shape[0], 1, 1)
-                X_vector = X.reshape(X.shape[0], -1, 1)
+                X_vector = X.reshape(X.shape[0], 1, -1)
                 information_matrix = np.sum(
-                    X_vector
-                    @ score_vector.transpose(0, 2, 1)
+                    X_vector.transpose(0, 2, 1)
                     @ score_vector
-                    @ X_vector.transpose(0, 2, 1),
+                    @ score_vector.transpose(0, 2, 1)
+                    @ X_vector,
                     axis=0,
                 )
             else:
@@ -207,18 +207,17 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
         information_matrix_inv = self.invert_matrix(information_matrix)
 
         self.standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
-        betas = self.beta.flatten()
 
         # Handle division by zero
         if self.standard_errors.any() == 0:
             # Raise warning
             print("WARNING: Standard errors are zero. Setting to 1.")
-        self.wald_statistic = betas / self.standard_errors
+        self.wald_statistic = self.beta / self.standard_errors
         self.p_values = 2 * (1 - norm.cdf(np.abs(self.wald_statistic)))
 
         critical_value = norm.ppf(1 - self.significance / 2)
-        self.lower_bound = betas - critical_value * self.standard_errors
-        self.upper_bound = betas + critical_value * self.standard_errors
+        self.lower_bound = self.beta - critical_value * self.standard_errors
+        self.upper_bound = self.beta + critical_value * self.standard_errors
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
@@ -235,7 +234,7 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
             X = np.hstack([np.ones((X.shape[0], 1)), X])
         proba_class_1 = self.logistic_function(X @ self.beta)
         proba_class_0 = 1 - proba_class_1
-        return np.hstack((proba_class_0, proba_class_1))
+        return np.column_stack((proba_class_0, proba_class_1))
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -258,7 +257,7 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 
-        logit = (X @ self.beta).flatten()
+        logit = X @ self.beta
         proba = self.logistic_function(logit)
         information_matrix = self.information_matrix["information"][-1]
         cov_matrix = self.invert_matrix(information_matrix)
@@ -298,7 +297,7 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
     def summary(self) -> Dict[str, np.ndarray]:
         """Get a summary of the model parameters, standard errors, p-values, and confidence intervals."""
         return {
-            "betas": self.beta.flatten(),
+            "betas": self.beta,
             "standard_errors": self.standard_errors,
             "wald_statistic": self.wald_statistic,
             "p_values": self.p_values,
