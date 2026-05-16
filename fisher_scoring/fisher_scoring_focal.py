@@ -1,45 +1,35 @@
 """
-fisher_scoring_logistic.py.
+fisher_scoring_focal.py.
 
-Logistic Regression
-----------------------------------
+Focal Loss Regression
+------------------------------------
 
 Author: xRiskLab (deburky)
-GitHub: https://github.com/xRiskLab)
+GitHub: https://github.com/xRiskLab
 License: MIT
 
 Description:
-This module contains the `LogisticRegression` class, which is a custom
-implementation of logistic regression using the Fisher scoring algorithm. The
-Fisher scoring algorithm is an iterative optimization algorithm that uses the
-empirical or expected information matrix to update the model parameters. The class provides
-methods for fitting the model, making predictions, and computing model statistics.
+This module provides a Python implementation of the Fisher Scoring algorithm
+for logistic regression, incorporating focal loss to address challenges
+in imbalanced classification problems. It is particularly suited for datasets
+where the positive class is rare and traditional logistic regression may underperform.
 
-We provide two types of information matrices: 'expected' and 'empirical'. The 'expected'
-information matrix is computed using the Hessian matrix, while the 'empirical' information
-matrix is computed using the outer product of the score vectors (variance of the score).
+Key Features:
+- Fisher Scoring optimization for robust parameter estimation.
+- Focal loss integration to prioritize hard-to-classify examples.
+- Designed for research and experimental use (not production-ready).
 
-If `use_bias` is set to True, the model will include a bias term in the logistic regression
-equation. If `use_bias` is set to True, we add the bias term before the input features in
-the design matrix. In the summary output, the bias term will be included as the first element.
+Usage:
+This implementation is experimental and should be used with caution.
+Extensive testing and validation are recommended for specific applications.
 
 References:
-
-Erich L. Lehmann and George Casella. Theory of Point Estimation (2nd ed.). Springer, 1998.
-
-Gareth James, Daniela Witten, Trevor Hastie, and Robert Tibshirani. An Introduction to Statistical
-Learning: with Applications in Python. Springer, 2023.
-
-Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning:
-Data Mining, Inference, and Prediction (2nd ed.). Springer, 2009.
-
-Yudi Pawitan. In All Likelihood: Statistical Modelling and Inference Using Likelihood. Oxford University
-Press, 2001.
+- Tsung-Yi Lin et al. "Focal Loss for Dense Object Detection." ICCV 2017.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -52,40 +42,44 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class LogisticRegression(BaseEstimator, ClassifierMixin):
+class FocalLossRegression(ClassifierMixin, BaseEstimator):
     """
-    Fisher Scoring Logistic Regression class.
+    Fisher Scoring Focal Loss Regression class.
     """
 
     def __init__(
         self,
+        gamma: float = 2.0,
         epsilon: float = 1e-10,
         max_iter: int = 100,
         information: str = "expected",
-        use_bias: bool = True,
         significance: float = 0.05,
+        use_bias: bool = True,
         verbose: bool = False,
     ) -> None:
+        self.gamma = gamma
         self.epsilon = epsilon
         self.max_iter = max_iter
         self.information = information
         self.use_bias = use_bias
         self.significance = significance
-        self.bias: Optional[float] = None
+        self.verbose = verbose
         self.beta: Optional[np.ndarray] = None
-        self.information_matrix: Dict[str, List[np.ndarray]] = {
-            "iteration": [],
-            "information": [],
-        }
+        self.bias: Optional[np.ndarray] = None
         self.loss_history: List[float] = []
         self.beta_history: List[np.ndarray] = []
+        self.iteration_list: List[int] = []
+        self.information_list: List[np.ndarray] = []
+        self.information_matrix: Dict[str, Any] = {
+            "iteration": self.iteration_list,
+            "information": self.information_list,
+        }
         self.standard_errors: Optional[np.ndarray] = None
         self.wald_statistic: Optional[np.ndarray] = None
         self.p_values: Optional[np.ndarray] = None
         self.lower_bound: Optional[np.ndarray] = None
         self.upper_bound: Optional[np.ndarray] = None
         self.is_fitted_: bool = False
-        self.verbose = verbose
         self.feature_names: Optional[List[str]] = None
         self.score_vectors = pd.DataFrame()
 
@@ -93,59 +87,114 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
     def logistic_function(z: np.ndarray) -> np.ndarray:
         """
         Compute the logistic function for the input array z.
+
+        Uses a numerically stable formulation that avoids overflow
+        in exp() for large positive or negative z values.
         """
-        p = 1 / (1 + np.exp(-z))
-        return np.clip(p, 1e-10, 1 - 1e-10)
+        z = np.asarray(z, dtype=np.float64)
+        p = np.where(z >= 0, 1 / (1 + np.exp(-z)), np.exp(z) / (1 + np.exp(z)))
+        return np.asarray(np.clip(p, 1e-10, 1 - 1e-10))
 
     @staticmethod
-    def compute_loss(y: np.ndarray, p: np.ndarray) -> float:
+    def safe_log(x: np.ndarray, minval: float = 1e-5) -> np.ndarray:
         """
-        Compute the log-likelihood loss for logistic regression.
+        Compute the safe log to prevent log(0).
         """
-        p = np.clip(p, 1e-10, 1 - 1e-10)
-        return np.sum(xlogy(y, p) + xlogy(1 - y, 1 - p))
+        return np.asarray(np.log(np.clip(x, minval, 1 - minval)))
 
     @staticmethod
-    def invert_matrix(matrix: np.ndarray) -> np.ndarray:
+    def generate_focal_parameter(
+        y: np.ndarray, p: np.ndarray, gamma: float
+    ) -> np.ndarray:
         """
-        Attempt to invert a matrix, falling back to the pseudo-inverse
-        if the matrix is singular.
+        Generate the focal parameter for the focal loss.
         """
+        mask_pos = y == 1
+        mask_neg = y == 0
+
+        pt = np.where(mask_pos, p, 1 - p)
+        pt = np.clip(pt, 1e-10, 1 - 1e-10)
+        pt[mask_pos] = (1 - pt[mask_pos]) ** gamma
+        pt[mask_neg] = pt[mask_neg] ** gamma
+        return pt
+
+    def compute_loss(self, y: np.ndarray, p: np.ndarray) -> float:
+        """
+        Compute the focal loss for logistic regression.
+        """
+        pt = np.where(y == 1, p, 1 - p)
+        pt = np.clip(pt, 1e-10, 1 - 1e-10)
+        focal_weight = (1 - pt) ** self.gamma
+        return float(np.sum((xlogy(y, p) + xlogy(1 - y, 1 - p)) * focal_weight))
+
+    @staticmethod
+    def invert_matrix(
+        matrix: np.ndarray, cond_threshold: float = 1e12
+    ) -> np.ndarray:
+        """
+        Invert a matrix, falling back to the pseudo-inverse
+        if the matrix is singular or near-singular.
+
+        Uses the condition number to detect near-singularity,
+        since np.linalg.inv silently returns garbage for
+        ill-conditioned matrices without raising an error.
+        """
+        if not np.all(np.isfinite(matrix)):
+            cond = np.inf
+        else:
+            cond = np.linalg.cond(matrix)
+        if cond > cond_threshold:
+            import warnings
+
+            warnings.warn(
+                f"Near-singular information matrix (condition number: {cond:.2e}). "
+                "Using pseudo-inverse. Results may be unreliable due to "
+                "multicollinearity or quasi-complete separation.",
+                stacklevel=2,
+            )
+            try:
+                return np.linalg.pinv(matrix)
+            except np.linalg.LinAlgError:
+                return np.zeros_like(matrix)
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
-    def fit(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-    ) -> LogisticRegression:
-        """Fit the logistic regression model using Fisher scoring."""
+    def fit(self, X: np.ndarray, y: np.ndarray) -> FocalLossRegression:
+        """
+        Fit the focal logistic regression model using Fisher scoring.
+        """
+
         if isinstance(X, pd.DataFrame):
             self.feature_names = X.columns.tolist()
 
         X = np.array(X)
         y = np.array(y).reshape(-1)
-
-        self.classes_ = np.unique(y)
+        n_features = X.shape[1]
 
         # Initialize bias term if use_bias is True
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
+            n_features += 1
 
         # Initialize weights (beta) to zero
-        self.beta = np.zeros(X.shape[1])
+        self.beta = np.zeros(n_features)
 
         for iteration in range(self.max_iter):
             p = self.logistic_function(X @ self.beta)
-            score_vector = (y - p)[:, np.newaxis] * X
+            pt = self.generate_focal_parameter(y, p, self.gamma)
+
+            # Adjust weights so that their sum equals the sample size
+            pt /= len(y) / np.sum(pt)
+
+            score_vector = (y - p)[:, np.newaxis] * X * pt[:, np.newaxis]
             score = np.sum(score_vector, axis=0)
 
+            # Select information matrix based on expected or empirical Fisher information
             if self.information == "expected":
                 # Expected Fisher Information matrix
-                W_diag = (p * (1 - p)).ravel()
+                W_diag = (p * (1 - p) * pt).ravel()
                 information_matrix = (X.T * W_diag) @ X
             elif self.information == "empirical":
                 # Empirical Fisher Information matrix
@@ -155,7 +204,8 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
                     X_vector.transpose(0, 2, 1)
                     @ score_vector
                     @ score_vector.transpose(0, 2, 1)
-                    @ X_vector,
+                    @ X_vector
+                    * pt.reshape(-1, 1, 1),
                     axis=0,
                 )
             else:
@@ -163,21 +213,20 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
                     f"Unknown Fisher Information type: {self.information}. Use 'expected' or 'empirical'."
                 )
 
-            self.information_matrix["iteration"].append(iteration)
-            self.information_matrix["information"].append(information_matrix)
+            self.iteration_list.append(iteration)
+            self.information_list.append(information_matrix)
 
             loss = self.compute_loss(y, p)
-            log_loss = -loss / X.shape[0]
+            focal_loss = -loss / X.shape[0]
 
             self.loss_history.append(loss)
 
             if self.verbose:
-                loss = self.compute_loss(y, p) / X.shape[0]
                 if iteration == 0:
                     print("Starting Fisher Scoring Iterations...")
-                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
+                print(f"Iteration: {iteration + 1}, Focal Loss: {focal_loss:.4f}")
 
-            # Update beta using the Fisher scoring algorithm
+            # Update beta using the Fisher Scoring update rule
             beta_new = self.beta + self.invert_matrix(information_matrix) @ score
 
             # Check for convergence
@@ -199,10 +248,10 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
         return self
 
     def compute_statistics(self) -> None:
-        """Compute the standard errors, Wald statistic, p-values, and confidence intervals."""
-        information_matrix = self.information_matrix["information"][
-            -1
-        ]  # Information at the MLE
+        """
+        Compute the standard errors, Wald statistic, p-values, and confidence intervals.
+        """
+        information_matrix = self.information_list[-1]  # Information at the MLE
 
         information_matrix_inv = self.invert_matrix(information_matrix)
 
@@ -233,15 +282,14 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
         proba_class_1 = self.logistic_function(X @ self.beta)
-        proba_class_0 = 1 - proba_class_1
-        return np.column_stack((proba_class_0, proba_class_1))
+        return np.column_stack([1 - proba_class_1, proba_class_1])
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
         Predict the target labels for the input data X.
         """
-        predicted_proba = self.predict_proba(X)[:, 1]
-        return (predicted_proba > 0.5).astype(int)
+        probas = self.predict_proba(X)
+        return (probas[:, 1] > 0.5).astype(int)
 
     def predict_ci(self, X, method="logit"):
         """
@@ -282,20 +330,26 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
 
     def get_params(self, deep: bool = True) -> Dict[str, Union[float, int, str, bool]]:
         return {
+            "gamma": self.gamma,
             "epsilon": self.epsilon,
             "max_iter": self.max_iter,
             "information": self.information,
-            "significance": self.significance,
             "use_bias": self.use_bias,
+            "verbose": self.verbose,
         }
 
-    def set_params(self, **params: Union[float, int, str, bool]) -> LogisticRegression:
+    def set_params(self, **params: Union[float, int, str, bool]) -> FocalLossRegression:
         for key, value in params.items():
             setattr(self, key, value)
         return self
 
     def summary(self) -> Dict[str, np.ndarray]:
-        """Get a summary of the model parameters, standard errors, p-values, and confidence intervals."""
+        assert self.beta is not None, "Model is not fitted yet."
+        assert self.standard_errors is not None, "Model is not fitted yet."
+        assert self.wald_statistic is not None, "Model is not fitted yet."
+        assert self.p_values is not None, "Model is not fitted yet."
+        assert self.lower_bound is not None, "Model is not fitted yet."
+        assert self.upper_bound is not None, "Model is not fitted yet."
         return {
             "betas": self.beta,
             "standard_errors": self.standard_errors,
@@ -303,12 +357,11 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
             "p_values": self.p_values,
             "lower_bound": self.lower_bound,
             "upper_bound": self.upper_bound,
-        }  # type: ignore
+        }
 
     def display_summary(self, style="default") -> None:
         """
         Display a summary for IPython notebooks or console output.
-
         Args:
             style (str): The style for the summary output.
         """
@@ -316,7 +369,7 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
         summary_dict = self.summary()
 
         total_iterations = len(self.information_matrix["iteration"])
-        table = Table(title="Fisher Scoring Logistic Regression Summary")
+        table = Table(title="Fisher Scoring Focal Loss Logistic Regression Summary")
 
         table.add_column(
             "Parameter",
@@ -352,14 +405,14 @@ class LogisticRegression(BaseEstimator, ClassifierMixin):
 
         summary_stats = f"""
         Total Fisher Scoring Iterations: [{style}]{total_iterations}[/{style}]
-        Log Likelihood: [{style}]{self.loss_history[-1]:.4f}[/{style}]
+        Focal Log Likelihood: [{style}]{self.loss_history[-1]:.4f}[/{style}]
         Beta 0 = intercept (bias): [{style}]{self.use_bias}[/{style}]
         """
 
         console.print(
             Panel.fit(
                 summary_stats,
-                title="Fisher Scoring Logistic Regression Fit",
+                title="Fisher Scoring Focal Logistic Regression Fit",
                 safe_box=True,
             )
         )

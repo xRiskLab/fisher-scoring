@@ -1,7 +1,7 @@
 # Fisher Scoring with Python
 
 **Author:** [xRiskLab](https://github.com/xRiskLab)<br>
-**License:** [MIT License](https://opensource.org/licenses/MIT) (2025)
+**License:** [MIT License](https://opensource.org/licenses/MIT) (2026)
 
 [![CI](https://github.com/xRiskLab/fisher-scoring/workflows/CI/badge.svg)](https://github.com/xRiskLab/fisher-scoring/actions)
 [![Compatibility](https://github.com/xRiskLab/fisher-scoring/workflows/Python%20Version%20Compatibility/badge.svg)](https://github.com/xRiskLab/fisher-scoring/actions)

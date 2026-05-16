@@ -1,5 +1,13 @@
 # Changelog
 
+- **v2.0.6**
+  - **New**: Added `DivergenceClassifier` class — maximizes FICO divergence via quadratic programming, following Hoadley (2000). Supports unconstrained (analytical Fisher LDA) and constrained (score engineering) modes with weight-of-evidence rescaling.
+  - **New**: Switched build system from setuptools to hatchling with dynamic versioning.
+  - **New**: Moved package from `src/fisher_scoring/` to `fisher_scoring/` at repo root.
+  - **New**: Added strict mypy type checking with pandas and scikit-learn stubs.
+  - **Fixed**: Numerically stable sigmoid across all logistic models to eliminate overflow warnings.
+  - **CI**: Updated workflows for new package paths and enabled mypy in CI.
+
 - **v2.0.5**
   - **New**: Added `RobustLogisticRegression` class with epsilon-contamination for outlier-resistant classification.
   - **Enhanced**: Poisson and Negative Binomial regression with empirical Fisher information matrix support.

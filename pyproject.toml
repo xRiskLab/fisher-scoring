@@ -1,6 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "fisher-scoring"
-version = "2.0.5.post1"
+dynamic = ["version"]
 description = "A Python implementation of the Fisher Scoring algorithm for proportion and incidence rate modeling."
 authors = [
     { name = "xRiskLab", email = "contact@xrisklab.ai" }
@@ -42,11 +46,26 @@ dev = [
     "pydocstyle>=6.3.0,<7.0.0",
     "docformatter>=1.7.5,<2.0.0",
     "ruff>=0.1.0,<1.0.0",
+    "mypy>=1.0.0,<2.0.0",
+    "pandas-stubs>=2.2.2.240807",
+    "scikit-learn-stubs>=0.0.3",
+    "jupyter>=1.1.1",
+    "statsmodels>=0.14.6",
 ]
 
-[tool.setuptools]
+[tool.hatch.version]
+path = "fisher_scoring/__init__.py"
+
+[tool.hatch.build.targets.wheel]
 packages = ["fisher_scoring"]
-package-dir = { "" = "src" }
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/fisher_scoring",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
 
 [tool.uv]
 default-groups = ["dev"]
@@ -59,10 +78,29 @@ profile = "black"
 line_length = 88
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["."]
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = ["C0413", "C0103", "E0213"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "rich.*",
+    "scipy.special.*",
+    "scipy.stats.*",
+    "scipy.optimize.*",
+    "sklearn.*",
+    "matplotlib.*",
+]
+ignore_missing_imports = true
 
 [tool.pydocstyle]
 convention = "google"

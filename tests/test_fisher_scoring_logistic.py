@@ -3,7 +3,7 @@
 import unittest
 
 import numpy as np
-from fisher_scoring_logistic import LogisticRegression
+from fisher_scoring.fisher_scoring_logistic import LogisticRegression
 from sklearn.exceptions import NotFittedError
 
 

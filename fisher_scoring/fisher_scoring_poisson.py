@@ -22,7 +22,6 @@ from rich.table import Table
 from scipy.stats import norm
 
 
-# pylint: disable=invalid-name
 class PoissonRegression:
     """Poisson regression using Fisher scoring method."""
 
@@ -56,15 +55,37 @@ class PoissonRegression:
         self.loss_history: List[float] = []
 
     @staticmethod
-    def invert_matrix(matrix: np.ndarray) -> np.ndarray:
+    def invert_matrix(
+        matrix: np.ndarray, cond_threshold: float = 1e12
+    ) -> np.ndarray:
         """
-        Attempt to invert a matrix, falling back to the pseudo-inverse
-        if the matrix is singular.
+        Invert a matrix, falling back to the pseudo-inverse
+        if the matrix is singular or near-singular.
+
+        Uses the condition number to detect near-singularity,
+        since np.linalg.inv silently returns garbage for
+        ill-conditioned matrices without raising an error.
         """
+        if not np.all(np.isfinite(matrix)):
+            cond = np.inf
+        else:
+            cond = np.linalg.cond(matrix)
+        if cond > cond_threshold:
+            import warnings
+
+            warnings.warn(
+                f"Near-singular information matrix (condition number: {cond:.2e}). "
+                "Using pseudo-inverse. Results may be unreliable due to "
+                "multicollinearity or quasi-complete separation.",
+                stacklevel=2,
+            )
+            try:
+                return np.linalg.pinv(matrix)
+            except np.linalg.LinAlgError:
+                return np.zeros_like(matrix)
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
     def fit(self, x, y) -> PoissonRegression:
@@ -178,7 +199,7 @@ class PoissonRegression:
 
     def compute_statistics(self) -> None:
         """Compute the standard errors, Wald statistic, p-values, and confidence intervals."""
-        if self.fitted_X is None:
+        if self.fitted_X is None or self.weights is None:
             raise ValueError("Model must be fitted before computing statistics.")
 
         # Compute information matrix
@@ -207,6 +228,13 @@ class PoissonRegression:
         """Get a summary of the model parameters, standard errors, p-values, and confidence intervals."""
         if self.standard_errors is None:
             self.compute_statistics()
+
+        assert self.weights is not None, "Model must be fitted before calling summary."
+        assert self.standard_errors is not None
+        assert self.wald_statistic is not None
+        assert self.p_values is not None
+        assert self.lower_bound is not None
+        assert self.upper_bound is not None
 
         return {
             "coefficients": self.weights,
@@ -332,15 +360,37 @@ class NegativeBinomialRegression:
         self.loss_history: List[float] = []
 
     @staticmethod
-    def invert_matrix(matrix: np.ndarray) -> np.ndarray:
+    def invert_matrix(
+        matrix: np.ndarray, cond_threshold: float = 1e12
+    ) -> np.ndarray:
         """
-        Attempt to invert a matrix, falling back to the pseudo-inverse
-        if the matrix is singular.
+        Invert a matrix, falling back to the pseudo-inverse
+        if the matrix is singular or near-singular.
+
+        Uses the condition number to detect near-singularity,
+        since np.linalg.inv silently returns garbage for
+        ill-conditioned matrices without raising an error.
         """
+        if not np.all(np.isfinite(matrix)):
+            cond = np.inf
+        else:
+            cond = np.linalg.cond(matrix)
+        if cond > cond_threshold:
+            import warnings
+
+            warnings.warn(
+                f"Near-singular information matrix (condition number: {cond:.2e}). "
+                "Using pseudo-inverse. Results may be unreliable due to "
+                "multicollinearity or quasi-complete separation.",
+                stacklevel=2,
+            )
+            try:
+                return np.linalg.pinv(matrix)
+            except np.linalg.LinAlgError:
+                return np.zeros_like(matrix)
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
     def fit(self, x, y) -> NegativeBinomialRegression:
@@ -460,7 +510,7 @@ class NegativeBinomialRegression:
 
     def compute_statistics(self) -> None:
         """Compute the standard errors, Wald statistic, p-values, and confidence intervals."""
-        if self.fitted_X is None:
+        if self.fitted_X is None or self.weights is None:
             raise ValueError("Model must be fitted before computing statistics.")
 
         # Compute information matrix using negative binomial variance structure
@@ -491,6 +541,13 @@ class NegativeBinomialRegression:
         """Get a summary of the model parameters, standard errors, p-values, and confidence intervals."""
         if self.standard_errors is None:
             self.compute_statistics()
+
+        assert self.weights is not None, "Model must be fitted before calling summary."
+        assert self.standard_errors is not None
+        assert self.wald_statistic is not None
+        assert self.p_values is not None
+        assert self.lower_bound is not None
+        assert self.upper_bound is not None
 
         return {
             "coefficients": self.weights,

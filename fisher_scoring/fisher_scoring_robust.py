@@ -41,7 +41,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class RobustLogisticRegression(BaseEstimator, ClassifierMixin):
+class RobustLogisticRegression(ClassifierMixin, BaseEstimator):
     """
     Robust Fisher Scoring Logistic Regression class using epsilon-contamination.
 
@@ -110,10 +110,12 @@ class RobustLogisticRegression(BaseEstimator, ClassifierMixin):
     def logistic_function(z: np.ndarray) -> np.ndarray:
         """
         Compute the logistic function for the input array z.
+
+        Uses a numerically stable formulation that avoids overflow
+        in exp() for large positive or negative z values.
         """
-        # Clip to prevent overflow
-        z = np.clip(z, -500, 500)
-        p = 1 / (1 + np.exp(-z))
+        z = np.asarray(z, dtype=np.float64)
+        p = np.where(z >= 0, 1 / (1 + np.exp(-z)), np.exp(z) / (1 + np.exp(z)))
         return np.clip(p, 1e-10, 1 - 1e-10)
 
     @staticmethod
@@ -129,18 +131,40 @@ class RobustLogisticRegression(BaseEstimator, ClassifierMixin):
         if weights is not None:
             log_likelihood = weights * log_likelihood
 
-        return np.sum(log_likelihood)
+        return float(np.sum(log_likelihood))
 
     @staticmethod
-    def invert_matrix(matrix: np.ndarray) -> np.ndarray:
+    def invert_matrix(
+        matrix: np.ndarray, cond_threshold: float = 1e12
+    ) -> np.ndarray:
         """
-        Attempt to invert a matrix, falling back to the pseudo-inverse
-        if the matrix is singular.
+        Invert a matrix, falling back to the pseudo-inverse
+        if the matrix is singular or near-singular.
+
+        Uses the condition number to detect near-singularity,
+        since np.linalg.inv silently returns garbage for
+        ill-conditioned matrices without raising an error.
         """
+        if not np.all(np.isfinite(matrix)):
+            cond = np.inf
+        else:
+            cond = np.linalg.cond(matrix)
+        if cond > cond_threshold:
+            import warnings
+
+            warnings.warn(
+                f"Near-singular information matrix (condition number: {cond:.2e}). "
+                "Using pseudo-inverse. Results may be unreliable due to "
+                "multicollinearity or quasi-complete separation.",
+                stacklevel=2,
+            )
+            try:
+                return np.linalg.pinv(matrix)
+            except np.linalg.LinAlgError:
+                return np.zeros_like(matrix)
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
     def _compute_robust_weights(
@@ -369,6 +393,14 @@ class RobustLogisticRegression(BaseEstimator, ClassifierMixin):
         """Get a summary of the model parameters, standard errors, p-values, and confidence intervals."""
         if not self.is_fitted_:
             raise NotFittedError("Model must be fitted before getting summary.")
+
+        assert self.beta is not None
+        assert self.standard_errors is not None
+        assert self.wald_statistic is not None
+        assert self.p_values is not None
+        assert self.lower_bound is not None
+        assert self.upper_bound is not None
+        assert self.weights is not None
 
         return {
             "betas": self.beta,

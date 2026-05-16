@@ -41,7 +41,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
 
-class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
+class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
     """
     Fisher Scoring Multinomial Logistic Regression class.
     """
@@ -65,7 +65,7 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         self.bias: Optional[np.ndarray] = None
         self.loss_history: List[float] = []
         self.beta_history: List[np.ndarray] = []
-        self.information_matrix: Dict[str, List[np.ndarray]] = {
+        self.information_matrix: Dict[str, List[Union[int, np.ndarray]]] = {
             "iteration": [],
             "information": [],
         }
@@ -79,7 +79,8 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         Compute the softmax function for the input array z.
         """
         exp_z = np.exp(z - np.max(z, axis=1, keepdims=True))
-        return exp_z / np.sum(exp_z, axis=1, keepdims=True)
+        result: np.ndarray = exp_z / np.sum(exp_z, axis=1, keepdims=True)
+        return result
 
     @staticmethod
     def compute_loss(y: np.ndarray, p: np.ndarray) -> float:
@@ -87,18 +88,40 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         Compute the log likelihood loss for multinomial logistic regression.
         """
         p = np.clip(p, 1e-10, 1 - 1e-10)
-        return np.sum(xlogy(y, p))
+        return float(np.sum(xlogy(y, p)))
 
     @staticmethod
-    def invert_matrix(matrix: np.ndarray) -> np.ndarray:
+    def invert_matrix(
+        matrix: np.ndarray, cond_threshold: float = 1e12
+    ) -> np.ndarray:
         """
-        Attempt to invert a matrix, falling back to the pseudo-inverse
-        if the matrix is singular.
+        Invert a matrix, falling back to the pseudo-inverse
+        if the matrix is singular or near-singular.
+
+        Uses the condition number to detect near-singularity,
+        since np.linalg.inv silently returns garbage for
+        ill-conditioned matrices without raising an error.
         """
+        if not np.all(np.isfinite(matrix)):
+            cond = np.inf
+        else:
+            cond = np.linalg.cond(matrix)
+        if cond > cond_threshold:
+            import warnings
+
+            warnings.warn(
+                f"Near-singular information matrix (condition number: {cond:.2e}). "
+                "Using pseudo-inverse. Results may be unreliable due to "
+                "multicollinearity or quasi-complete separation.",
+                stacklevel=2,
+            )
+            try:
+                return np.linalg.pinv(matrix)
+            except np.linalg.LinAlgError:
+                return np.zeros_like(matrix)
         try:
             return np.linalg.inv(matrix)
         except np.linalg.LinAlgError:
-            print("WARNING: Singular matrix. Using pseudo-inverse.")
             return np.linalg.pinv(matrix)
 
     def fit(
@@ -189,6 +212,7 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         """
         Compute the standard errors, Wald statistic, p-values, and confidence intervals for each class.
         """
+        assert self.beta is not None
         n_classes = self.beta.shape[1]  # Number of classes
 
         self.statistics = {}  # Initialize the statistics dictionary
@@ -304,6 +328,7 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         X = np.array(X)
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
+        assert self.beta is not None
         return self.softmax_function(X @ self.beta)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -311,7 +336,7 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         Predict the target labels for the input data X.
         """
         probas = self.predict_proba(X)
-        return np.argmax(probas, axis=1)
+        return np.asarray(np.argmax(probas, axis=1))
 
     def predict_ci(self, X: np.ndarray, method: str = "logit") -> Dict[int, np.ndarray]:
         """
@@ -335,11 +360,13 @@ class MultinomialLogisticRegression(BaseEstimator, ClassifierMixin):
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 
+        assert self.beta is not None
         # Compute logits for each class
         logits = X @ self.beta
         probabilities = self.softmax_function(logits)
-        information_matrix = self.information_matrix["information"][-1]
-        cov_matrix = self.invert_matrix(information_matrix)
+        info = self.information_matrix["information"][-1]
+        assert isinstance(info, np.ndarray)
+        cov_matrix = self.invert_matrix(info)
         z_crit = norm.ppf(1 - self.significance / 2)  # Critical value for CI
 
         ci_results = {}

@@ -75,34 +75,32 @@ jobs:
     
     - name: Run ruff
       run: |
-        uv run ruff check src/fisher_scoring/ tests/
-    
+        uv run ruff check fisher_scoring/ tests/
+
     - name: Run ruff format check
       run: |
-        uv run ruff format --check src/fisher_scoring/ tests/
+        uv run ruff format --check fisher_scoring/ tests/
 
   type-check:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v1
       with:
         version: "latest"
-    
+
     - name: Install dependencies
       run: |
         uv sync --dev
         uv pip install -e .
-    
-    - name: Run mypy (if configured)
+
+    - name: Run mypy
       run: |
-        # Add mypy configuration and uncomment when ready
-        # uv run mypy src/fisher_scoring/
-        echo "Type checking skipped - configure mypy when ready"
+        uv run mypy fisher_scoring/

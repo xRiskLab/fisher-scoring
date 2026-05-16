@@ -1,5 +1,6 @@
 import logging
 
+from .fisher_scoring_divergence import DivergenceClassifier
 from .fisher_scoring_focal import FocalLossRegression
 from .fisher_scoring_logistic import LogisticRegression
 from .fisher_scoring_multinomial import MultinomialLogisticRegression
@@ -37,6 +38,7 @@ class FisherScoringFocalRegression(FocalLossRegression):
 
 
 __all__ = [
+    "DivergenceClassifier",
     "LogisticRegression",
     "MultinomialLogisticRegression",
     "FocalLossRegression",
@@ -45,10 +47,4 @@ __all__ = [
     "RobustLogisticRegression",
 ]
 
-# Add dynamic version retrieval
-try:
-    from importlib.metadata import version
-
-    __version__ = version("fisher-scoring")
-except ImportError:
-    __version__ = "unknown"
+__version__ = "2.0.6"
