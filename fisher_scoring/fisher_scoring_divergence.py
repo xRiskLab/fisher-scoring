@@ -26,7 +26,7 @@ the average.
 
 In the unconstrained case, the maximum-divergence weights are the classical
 Fisher LDA solution: S = C⁻¹d, where C = (Cov_G + Cov_B)/2 is the average
-within-class covariance and d = mean_G − mean_B.
+within-class covariance and d = mean_B − mean_G.
 
 When linear constraints are present (centering, pattern, bound constraints as
 in score engineering), the problem is solved via quadratic programming:
@@ -74,7 +74,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
 
         Div = (d'S)² / (S'CS)
 
-    where d = mean(X|G) - mean(X|B) and C = (Cov(X|G) + Cov(X|B)) / 2.
+    where d = mean(X|B) - mean(X|G) and C = (Cov(X|G) + Cov(X|B)) / 2.
 
     Parameters
     ----------
@@ -169,8 +169,8 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
         # Average within-class covariance (FICO convention)
         C = (cov_good + cov_bad) / 2
 
-        # Difference in means (Good - Bad direction)
-        d = mean_good - mean_bad
+        # Difference in means (Bad - Good direction, matches logistic regression)
+        d = mean_bad - mean_good
 
         return C, d, mean_good, mean_bad, len(X_good), len(X_bad)
 
@@ -385,7 +385,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
         -------
         scores : ndarray of shape (n_samples,)
             The linear score S'X + bias. Higher scores indicate
-            higher likelihood of being Good (class 0).
+            higher likelihood of being Bad (class 1).
         """
         if not self.is_fitted_:
             raise NotFittedError("This classifier is not fitted yet. Call 'fit' first.")
@@ -410,16 +410,16 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
             Column 0 = P(Good), Column 1 = P(Bad).
         """
         scores = self.score_samples(X)
-        # Higher score → more likely Good (class 0)
-        # P(Good) = sigmoid(score), P(Bad) = 1 - P(Good)
+        # Higher score → more likely Bad (class 1), matching logistic regression
+        # P(Bad) = sigmoid(score), P(Good) = 1 - P(Bad)
         # Numerically stable sigmoid to avoid overflow in exp()
-        p_good = np.where(
+        p_bad = np.where(
             scores >= 0,
             1 / (1 + np.exp(-scores)),
             np.exp(scores) / (1 + np.exp(scores)),
         )
-        p_good = np.clip(p_good, 1e-10, 1 - 1e-10)
-        return np.column_stack((p_good, 1 - p_good))
+        p_bad = np.clip(p_bad, 1e-10, 1 - 1e-10)
+        return np.column_stack((1 - p_bad, p_bad))
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
