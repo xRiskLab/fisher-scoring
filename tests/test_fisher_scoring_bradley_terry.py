@@ -694,7 +694,10 @@ class TestBradleyTerry(unittest.TestCase):
         model = BradleyTerry(l2=1e-6).fit(X, y.astype(float), offset=offset)
         self.assertTrue(np.all(np.isfinite(model.beta)))
         self.assertAlmostEqual(model.coef_["x"], 0.5, delta=0.3)
-        self.assertTrue(np.all(np.diff(model.loss_history) >= -1e-6))
+        # loss_history[t] is the penalised log-likelihood of the iterate accepted
+        # at step t - 1; log_likelihood_ adds the final accepted iterate.
+        accepted = [*model.loss_history, model.log_likelihood_]
+        self.assertTrue(np.all(np.diff(accepted) >= -1e-6))
         # No halving needed on a well-behaved problem: plain Fisher scoring steps.
         plain = BradleyTerry().fit(self.X, self.y, sample_weight=self.w)
         self.assertEqual(plain.n_iter_, 5)
