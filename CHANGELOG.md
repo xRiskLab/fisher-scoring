@@ -6,6 +6,8 @@
   - **New**: Added `pairs_from_counts` helper to turn aggregated win/loss tables into `(X, y, sample_weight)`.
   - **New**: `BradleyTerry.fisher_information()` returns the labelled expected or empirical information matrix (a weighted graph Laplacian over the comparison graph); `summary_frame()` and `rank()` return DataFrame summaries.
   - **Validated**: Estimates, standard errors and information matrices checked against R's `BradleyTerry2::BTm` and `glm` on the 1987 AL East baseball data (`tests/data/`), and against `choix`.
+  - **Fixed**: `MultinomialLogisticRegression` now uses the full (pK x pK) Fisher information with sum-to-zero identification. Standard errors, p-values, confidence intervals and `predict_ci` were previously computed from a pooled p x p matrix, giving the same (too small) standard errors for every class; class contrasts and their standard errors now match statsmodels `MNLogit`. Fits converge in about 6-8 iterations instead of 80-500 (3-17x faster in benchmarks).
+  - **Fixed**: `MultinomialLogisticRegression` accepts any class labels (previously only 0..K-1), `predict` returns labels from `classes_`, and it exposes `coef_`, `intercept_`, `covariance_` and `n_iter_`. Refitting resets the history, output is printed only with `verbose=True`, and reaching `max_iter` raises a warning.
   - **Typing**: Every public function is annotated. `X`/`y` accept arrays, DataFrames/Series or nested lists (`MatrixLike`, `VectorLike`); Poisson and Negative Binomial `predict` and `calculate_st_errors` now also accept DataFrames and lists. The package ships a `py.typed` marker, and mypy now requires annotations on all functions.
 
 - **v2.0.6**

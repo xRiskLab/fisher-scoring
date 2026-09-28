@@ -16,6 +16,20 @@ regression model.
 Additionally we provide a method to compute the standard errors, Wald statistic,
 p-values, and confidence intervals for each class.
 
+The model keeps one coefficient vector per class (K classes, as in scikit-learn)
+rather than K - 1 contrasts against a reference class. Because the softmax is
+unchanged when the same vector is added to every class, the coefficients are
+identified by a sum-to-zero constraint across classes. The Fisher information is
+the full (p K) x (p K) matrix
+
+    I = sum_i (diag(p_i) - p_i p_i') kron x_i x_i'
+
+with parameters stacked class by class. It is singular along the sum-to-zero
+directions, so the step and the covariance use its pseudo-inverse, obtained by
+adding a rank-p term on those directions (the score is orthogonal to them). The
+covariance of any class contrast beta_k - beta_j then matches a reference-class
+fit such as statsmodels MNLogit.
+
 References:
 
 Christopher M. Bishop. Pattern Recognition and Machine Learning. Springer, 2006.
@@ -28,6 +42,7 @@ Dan Jurafsky and James H. Martin. Speech and Language Processing, 2024.
 
 from __future__ import annotations
 
+import warnings
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -74,6 +89,8 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         self.is_fitted_: bool = False
         self.feature_names: Optional[List[str]] = None
         self.statistics: Dict[str, Dict[str, np.ndarray]] = {}
+        self.covariance_: Optional[np.ndarray] = None
+        self.n_iter_: int = 0
 
     @staticmethod
     def softmax_function(z: np.ndarray) -> np.ndarray:
@@ -107,8 +124,6 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         else:
             cond = np.linalg.cond(matrix)
         if cond > cond_threshold:
-            import warnings
-
             warnings.warn(
                 f"Near-singular information matrix (condition number: {cond:.2e}). "
                 "Using pseudo-inverse. Results may be unreliable due to "
@@ -124,6 +139,67 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         except np.linalg.LinAlgError:
             return np.linalg.pinv(matrix)
 
+    @staticmethod
+    def compute_information_matrix(
+        X: np.ndarray,
+        y_one_hot: np.ndarray,
+        p: np.ndarray,
+        information: str = "expected",
+    ) -> np.ndarray:
+        """
+        Full (p K) x (p K) Fisher information, parameters stacked class by class.
+
+        Expected: sum_i (diag(p_i) - p_i p_i') kron x_i x_i'. Empirical: the sum
+        of outer products of the per-observation scores (y_i - p_i) kron x_i.
+        Both are built with a single matrix product over an (n, K p) array.
+        """
+        n, n_features = X.shape
+        n_classes = p.shape[1]
+        if information == "expected":
+            # (n, K, p) -> (n, K p): row i holds p_ik x_i for every class k
+            weighted = (p[:, :, None] * X[:, None, :]).reshape(n, -1)
+            info = -(weighted.T @ weighted)
+            for k in range(n_classes):
+                block = slice(k * n_features, (k + 1) * n_features)
+                info[block, block] += (X.T * p[:, k]) @ X
+            return np.asarray(info)
+        if information == "empirical":
+            scores = ((y_one_hot - p)[:, :, None] * X[:, None, :]).reshape(n, -1)
+            return np.asarray(scores.T @ scores)
+        raise ValueError(
+            f"Unknown Fisher Information type: {information}. "
+            "Use 'expected' or 'empirical'."
+        )
+
+    @staticmethod
+    def _centering_projector(n_features: int, n_classes: int) -> np.ndarray:
+        """Projector onto the sum-to-zero directions (sum over classes = 0)."""
+        mean_over_classes = np.kron(
+            np.full((n_classes, n_classes), 1.0 / n_classes), np.eye(n_features)
+        )
+        return np.asarray(np.eye(n_features * n_classes) - mean_over_classes)
+
+    def _constrained_inverse(self, information_matrix: np.ndarray) -> np.ndarray:
+        """
+        Pseudo-inverse of the information on the sum-to-zero subspace.
+
+        The information vanishes on the directions that add the same vector to
+        every class. Adding c * (11' kron I) on those directions makes it
+        invertible without changing it on the sum-to-zero subspace; projecting
+        the inverse back onto that subspace gives the Moore-Penrose inverse.
+        """
+        n_params = information_matrix.shape[0]
+        assert self.beta is not None
+        n_features, n_classes = self.beta.shape
+        c = np.trace(information_matrix) / n_params
+        if not np.isfinite(c) or c <= 0:
+            c = 1.0
+        augmented = information_matrix + c * np.kron(
+            np.ones((n_classes, n_classes)), np.eye(n_features)
+        )
+        projector = self._centering_projector(n_features, n_classes)
+        return np.asarray(projector @ self.invert_matrix(augmented) @ projector)
+
     def fit(
         self,
         X: MatrixLike,
@@ -132,55 +208,33 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         """
         Fit the multinomial logistic regression model using Fisher scoring.
         """
+        self.feature_names = X.columns.tolist() if isinstance(X, pd.DataFrame) else None
 
-        if isinstance(X, pd.DataFrame):
-            self.feature_names = X.columns.tolist()
-
-        X = np.array(X)
-        y = np.array(y)
-        n_samples, n_features = X.shape
-
-        n_classes = len(np.unique(y))
-        self.classes_ = np.unique(y)
+        X = np.asarray(X, dtype=np.float64)
+        self.classes_, y_idx = np.unique(np.asarray(y), return_inverse=True)
+        n_samples = X.shape[0]
+        n_classes = len(self.classes_)
 
         y_one_hot = np.zeros((n_samples, n_classes))
-        y_one_hot[np.arange(n_samples), y] = 1
+        y_one_hot[np.arange(n_samples), y_idx] = 1
 
         # Initialize bias term if use_bias is True
         if self.use_bias:
-            X = np.hstack([np.ones((X.shape[0], 1)), X])
-            n_features += 1
+            X = np.hstack([np.ones((n_samples, 1)), X])
+        n_features = X.shape[1]
 
-        # Initialize weights (beta) to zero
+        # Reset fitted state so that refitting does not accumulate history
         self.beta = np.zeros((n_features, n_classes))
+        self.loss_history = []
+        self.beta_history = []
+        self.information_matrix = {"iteration": [], "information": []}
 
         for iteration in range(self.max_iter):
             p = self.softmax_function(X @ self.beta)
-            score = X.T @ (y_one_hot - p)
-
-            if self.information == "expected":
-                # Expected Fisher Information matrix
-                W_diag = (p * (1 - p)).sum(axis=1)
-                expected_I = (X.T * W_diag) @ X
-            elif self.information == "empirical":
-                # Empirical Fisher Information matrix
-                score_vector = (y_one_hot - p).reshape(X.shape[0], -1, 1)
-                X_vector = X.reshape(X.shape[0], -1, 1)
-                empirical_I = np.sum(
-                    X_vector
-                    @ score_vector.transpose(0, 2, 1)
-                    @ score_vector
-                    @ X_vector.transpose(0, 2, 1),
-                    axis=0,
-                )
-            else:
-                raise ValueError(
-                    f"Unknown Fisher Information type: {self.information}. Use 'expected' or 'empirical'."
-                )
-
-            # Select information matrix based on expected or empirical
-            information_matrix = (
-                expected_I if self.information == "expected" else empirical_I
+            # Score stacked class by class, matching the information layout
+            score = (X.T @ (y_one_hot - p)).T.ravel()
+            information_matrix = self.compute_information_matrix(
+                X, y_one_hot, p, self.information
             )
             self.information_matrix["iteration"].append(iteration)
             self.information_matrix["information"].append(information_matrix)
@@ -188,67 +242,69 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
             # Calculate and log the loss
             loss = self.compute_loss(y_one_hot, p)
             self.loss_history.append(loss)
-            log_loss = -loss / X.shape[0]
-
             if self.verbose:
                 if iteration == 0:
                     print("Starting Fisher Scoring Iterations...")
-                print(f"Iteration: {iteration + 1}, Log Loss: {log_loss:.4f}")
+                print(f"Iteration: {iteration + 1}, Log Loss: {-loss / n_samples:.4f}")
 
-            # Update beta with optimized matrix inversion and step update
-            new_beta = self.invert_matrix(information_matrix) @ score
-            self.beta += new_beta
+            step = self._constrained_inverse(information_matrix) @ score
+            self.beta = self.beta + step.reshape(n_classes, n_features).T
+            self.beta_history.append(self.beta.copy())
+            self.n_iter_ = iteration + 1
 
-            # Check for convergence
-            if np.linalg.norm(new_beta) < self.epsilon:
-                print(f"Convergence reached after {iteration + 1} iterations.")
+            if np.linalg.norm(step) < self.epsilon:
+                if self.verbose:
+                    print(f"Convergence reached after {iteration + 1} iterations.")
                 break
+        else:
+            warnings.warn(
+                "Maximum iterations reached without convergence.", stacklevel=2
+            )
 
         self.compute_statistics()
         self.is_fitted_ = True
         return self
+
+    @property
+    def coef_(self) -> np.ndarray:
+        """Coefficients per class, shape (n_classes, n_features), as in sklearn."""
+        assert self.beta is not None, "Model has not been fitted yet."
+        coefficients = self.beta[1:] if self.use_bias else self.beta
+        return np.asarray(coefficients.T)
+
+    @property
+    def intercept_(self) -> np.ndarray:
+        """Intercept per class, shape (n_classes,); zeros when use_bias=False."""
+        assert self.beta is not None, "Model has not been fitted yet."
+        if self.use_bias:
+            return np.asarray(self.beta[0])
+        return np.zeros(self.beta.shape[1])
 
     def compute_statistics(self) -> None:
         """
         Compute the standard errors, Wald statistic, p-values, and confidence intervals for each class.
         """
         assert self.beta is not None
-        n_classes = self.beta.shape[1]  # Number of classes
+        n_features, n_classes = self.beta.shape
+        info = self.information_matrix["information"][-1]  # Information at the MLE
+        assert isinstance(info, np.ndarray)
+        self.covariance_ = self._constrained_inverse(info)
+        variances = np.clip(np.diagonal(self.covariance_), 0.0, None)
+        critical_value = norm.ppf(1 - self.significance / 2)
 
-        self.statistics = {}  # Initialize the statistics dictionary
-
+        self.statistics = {}
         for k in range(n_classes):
-            # Use the correct information matrix for the k-th class
-            information_matrix = self.information_matrix["information"][
-                -1
-            ]  # Last information matrix (MLE)
-
-            # Invert the information matrix
-            information_matrix_inv = np.linalg.pinv(information_matrix)
-
-            # Extract standard errors for the k-th class
-            standard_errors = np.sqrt(np.diagonal(information_matrix_inv))
-            betas = self.beta[:, k]  # Coefficients for the k-th class
-
-            # Wald statistics
-            wald_statistic = betas / standard_errors
-
-            # p-values
-            p_values = 2 * (1 - norm.cdf(np.abs(wald_statistic)))
-
-            # Confidence intervals
-            critical_value = norm.ppf(1 - self.significance / 2)
-            lower_bound = betas - critical_value * standard_errors
-            upper_bound = betas + critical_value * standard_errors
-
-            # Store computed statistics in the dictionary for the k-th class
+            betas = self.beta[:, k]
+            standard_errors = np.sqrt(variances[k * n_features : (k + 1) * n_features])
+            with np.errstate(divide="ignore", invalid="ignore"):
+                wald_statistic = betas / standard_errors
             self.statistics[f"Class_{k}"] = {
                 "betas": betas,
                 "standard_errors": standard_errors,
                 "wald_statistic": wald_statistic,
-                "p_values": p_values,
-                "lower_bound": lower_bound,
-                "upper_bound": upper_bound,
+                "p_values": 2 * (1 - norm.cdf(np.abs(wald_statistic))),
+                "lower_bound": betas - critical_value * standard_errors,
+                "upper_bound": betas + critical_value * standard_errors,
             }
 
     def summary(self, class_idx: int) -> Dict[str, np.ndarray]:
@@ -325,7 +381,7 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
                 "Call 'fit' with appropriate arguments "
                 "before using this estimator."
             )
-        X = np.array(X)
+        X = np.asarray(X, dtype=np.float64)
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
         assert self.beta is not None
@@ -333,10 +389,10 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
 
     def predict(self, X: MatrixLike) -> np.ndarray:
         """
-        Predict the target labels for the input data X.
+        Predict the target labels (values from `classes_`) for the input data X.
         """
         probas = self.predict_proba(X)
-        return np.asarray(np.argmax(probas, axis=1))
+        return np.asarray(self.classes_[np.argmax(probas, axis=1)])
 
     def predict_ci(self, X: MatrixLike, method: str = "logit") -> Dict[int, np.ndarray]:
         """
@@ -361,51 +417,52 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 
-        assert self.beta is not None
-        # Compute logits for each class
+        assert self.beta is not None and self.covariance_ is not None
+        n_features, n_classes = self.beta.shape
         logits = X @ self.beta
         probabilities = self.softmax_function(logits)
-        info = self.information_matrix["information"][-1]
-        assert isinstance(info, np.ndarray)
-        cov_matrix = self.invert_matrix(info)
         z_crit = norm.ppf(1 - self.significance / 2)  # Critical value for CI
 
         ci_results = {}
-        for class_idx in range(self.beta.shape[1]):  # Iterate over each class
-            logits_k = logits[:, class_idx]
+        for class_idx in range(n_classes):
+            block = slice(class_idx * n_features, (class_idx + 1) * n_features)
             probabilities_k = probabilities[:, class_idx]
 
             if method == "logit":
-                # Gradient for linear logit confidence intervals
-                std_errors = np.array(
-                    [np.sqrt(np.dot(np.dot(g, cov_matrix), g)) for g in X]
+                # Interval for the class logit x' beta_k, mapped through the softmax
+                # with the other logits held at their estimates.
+                cov_k = self.covariance_[block, block]
+                std_errors = np.sqrt(
+                    np.clip(np.einsum("ij,jk,ik->i", X, cov_k, X), 0.0, None)
                 )
-                lower_logit = logits_k - z_crit * std_errors
-                upper_logit = logits_k + z_crit * std_errors
-
-                # Reshape logits for the softmax function
-                lower_logits_full = logits.copy()
-                upper_logits_full = logits.copy()
-
-                # Replace the current class logits with lower and upper bounds
-                lower_logits_full[:, class_idx] = lower_logit
-                upper_logits_full[:, class_idx] = upper_logit
-
-                # Compute the confidence intervals using the softmax function
-                lower_ci = self.softmax_function(lower_logits_full)[:, class_idx]
-                upper_ci = self.softmax_function(upper_logits_full)[:, class_idx]
+                lower_logits = logits.copy()
+                upper_logits = logits.copy()
+                lower_logits[:, class_idx] -= z_crit * std_errors
+                upper_logits[:, class_idx] += z_crit * std_errors
+                lower_ci = self.softmax_function(lower_logits)[:, class_idx]
+                upper_ci = self.softmax_function(upper_logits)[:, class_idx]
             elif method == "proba":
-                # Gradients for probability confidence intervals
-                gradients = (probabilities_k * (1 - probabilities_k))[:, None] * X
-                std_errors = np.sqrt(np.sum(gradients @ cov_matrix * gradients, axis=1))
+                # Delta method: d p_k / d beta_l = p_k (1[k = l] - p_l) x
+                weights = -probabilities_k[:, None] * probabilities
+                weights[:, class_idx] += probabilities_k
+                gradients = (weights[:, :, None] * X[:, None, :]).reshape(
+                    X.shape[0], -1
+                )
+                std_errors = np.sqrt(
+                    np.clip(
+                        np.einsum(
+                            "ij,jk,ik->i", gradients, self.covariance_, gradients
+                        ),
+                        0.0,
+                        None,
+                    )
+                )
                 lower_ci = np.clip(probabilities_k - z_crit * std_errors, 0, 1)
                 upper_ci = np.clip(probabilities_k + z_crit * std_errors, 0, 1)
             else:
                 raise ValueError(f"Unknown method: {method}. Use 'logit' or 'proba'.")
 
-            ci_results[class_idx] = np.vstack(
-                (lower_ci, upper_ci)
-            ).T  # Shape: (n_samples, 2)
+            ci_results[class_idx] = np.vstack((lower_ci, upper_ci)).T
 
         return ci_results
 

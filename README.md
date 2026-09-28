@@ -59,7 +59,7 @@ Source: [Limitations of the Empirical Fisher Approximation for Natural Gradient 
 ### Implementation Notes
 
 - **Multinomial Logistic Regression**  
-  The `MultinomialLogisticRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than $K - 1$. This approach allows multi-class classification problems to be converted to binary problems by calculating $1 - P_{Class=1}$.
+  The `MultinomialLogisticRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than $K - 1$. This approach allows multi-class classification problems to be converted to binary problems by calculating $1 - P_{Class=1}$. As in scikit-learn, the class coefficients are identified by summing to zero across classes; standard errors come from the full $pK \times pK$ Fisher information, so any contrast $\beta_k - \beta_j$ matches a reference-class fit such as statsmodels `MNLogit`.
 
 - **Focal Loss Regression**  
   The `FocalLossRegression` class employs a non-standard focal log-likelihood function in its optimization process leveraging $\gamma$ to focus on difficult-to-classify examples.
@@ -140,7 +140,7 @@ The `MultinomialLogisticRegression` class implements the Fisher Scoring algorith
 - `summary(class_idx)`: Get a summary of model parameters, standard errors, p-values, and confidence intervals for a specific class.
 - `display_summary(class_idx)`: Display a summary of model parameters, standard errors, p-values, and confidence intervals for a specific class.
 
-The algorithm is in a beta version and may require further testing and optimization to speed up matrix operations.
+**Attributes:** `classes_` (labels can be any values; `predict` returns them), `coef_` of shape (n_classes, n_features), `intercept_` of shape (n_classes,), `covariance_` (the $pK \times pK$ covariance, parameters stacked class by class), and `n_iter_`.
 
 ### Focal Loss Regression
 
