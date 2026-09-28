@@ -40,6 +40,8 @@ from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
+from ._typing import MatrixLike, VectorLike
+
 
 class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
     """
@@ -124,8 +126,8 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
 
     def fit(
         self,
-        X: np.ndarray,
-        y: np.ndarray,
+        X: MatrixLike,
+        y: VectorLike,
     ) -> MultinomialLogisticRegression:
         """
         Fit the multinomial logistic regression model using Fisher scoring.
@@ -255,7 +257,7 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         """
         return self.statistics.get(f"Class_{class_idx}", {})
 
-    def display_summary(self, class_idx: int, style="default") -> None:
+    def display_summary(self, class_idx: int, style: str = "default") -> None:
         """
         Display a summary for IPython notebooks or console output for a given class index.
         Args:
@@ -313,7 +315,7 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         )
         console.print(table)
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+    def predict_proba(self, X: MatrixLike) -> np.ndarray:
         """
         Predict the class probabilities for the input data X.
         """
@@ -329,14 +331,14 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         assert self.beta is not None
         return self.softmax_function(X @ self.beta)
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: MatrixLike) -> np.ndarray:
         """
         Predict the target labels for the input data X.
         """
         probas = self.predict_proba(X)
         return np.asarray(np.argmax(probas, axis=1))
 
-    def predict_ci(self, X: np.ndarray, method: str = "logit") -> Dict[int, np.ndarray]:
+    def predict_ci(self, X: MatrixLike, method: str = "logit") -> Dict[int, np.ndarray]:
         """
         Compute confidence intervals for predicted probabilities or logits for each class.
 
@@ -355,6 +357,7 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
                 "before using this estimator."
             )
 
+        X = np.asarray(X, dtype=np.float64)
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 

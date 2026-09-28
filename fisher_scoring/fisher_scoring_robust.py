@@ -40,6 +40,8 @@ from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
+from ._typing import MatrixLike, VectorLike
+
 
 class RobustLogisticRegression(ClassifierMixin, BaseEstimator):
     """
@@ -188,8 +190,8 @@ class RobustLogisticRegression(ClassifierMixin, BaseEstimator):
 
     def fit(
         self,
-        X: np.ndarray,
-        y: np.ndarray,
+        X: MatrixLike,
+        y: VectorLike,
     ) -> RobustLogisticRegression:
         """Fit the robust logistic regression model using weighted Fisher scoring."""
         if isinstance(X, pd.DataFrame):
@@ -298,7 +300,7 @@ class RobustLogisticRegression(ClassifierMixin, BaseEstimator):
         self.lower_bound = self.beta - critical_value * self.standard_errors
         self.upper_bound = self.beta + critical_value * self.standard_errors
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+    def predict_proba(self, X: MatrixLike) -> np.ndarray:
         """
         Predict the class probabilities for the input data X.
         """
@@ -315,14 +317,14 @@ class RobustLogisticRegression(ClassifierMixin, BaseEstimator):
         proba_class_0 = 1 - proba_class_1
         return np.hstack((proba_class_0.reshape(-1, 1), proba_class_1.reshape(-1, 1)))
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: MatrixLike) -> np.ndarray:
         """
         Predict the target labels for the input data X.
         """
         predicted_proba = self.predict_proba(X)[:, 1]
         return (predicted_proba > 0.5).astype(int)
 
-    def predict_ci(self, X: np.ndarray, method: str = "logit") -> np.ndarray:
+    def predict_ci(self, X: MatrixLike, method: str = "logit") -> np.ndarray:
         """
         Compute confidence intervals for predicted probabilities or logits.
 

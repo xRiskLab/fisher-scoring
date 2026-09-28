@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from .fisher_scoring_bradley_terry import BradleyTerry, pairs_from_counts
 from .fisher_scoring_divergence import DivergenceClassifier
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Dummy classes for backward compatibility
 class FisherScoringLogisticRegression(LogisticRegression):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         logger.warning(
             "FisherScoringLogisticRegression is deprecated, use LogisticRegression instead."
         )
@@ -23,7 +24,7 @@ class FisherScoringLogisticRegression(LogisticRegression):
 
 
 class FisherScoringMultinomialRegression(MultinomialLogisticRegression):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         logger.warning(
             "FisherScoringMultinomialRegression is deprecated, use MultinomialLogisticRegression instead."
         )
@@ -31,7 +32,7 @@ class FisherScoringMultinomialRegression(MultinomialLogisticRegression):
 
 
 class FisherScoringFocalRegression(FocalLossRegression):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         logger.warning(
             "FisherScoringFocalRegression is deprecated, use FocalLossRegression instead."
         )
