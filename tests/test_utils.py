@@ -1,6 +1,8 @@
 """test_utils.py."""
 
+import sys
 import unittest
+from unittest import mock
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,6 +35,14 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(
             all(column in results_df.columns for column in expected_columns)
         )
+
+    def test_missing_matplotlib_raises_helpful_error(self):
+        """Test that the module imports without matplotlib and the error names the extra."""
+        with mock.patch.dict(
+            sys.modules, {"matplotlib": None, "matplotlib.pyplot": None}
+        ):
+            with self.assertRaisesRegex(ImportError, r"fisher-scoring\[plot\]"):
+                plot_observed_vs_predicted(np.array([0, 1]), np.array([0.5, 1.5]))
 
 
 if __name__ == "__main__":

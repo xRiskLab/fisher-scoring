@@ -7,23 +7,30 @@ A function to plot observed vs predicted probabilities for count data.
 Source: J. Hilbe. Modeling Count Data. Cambridge University Press, 2014.
 """
 
-import matplotlib.pyplot as plt
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
 import numpy as np
 import pandas as pd
-from matplotlib.ticker import MaxNLocator
 from scipy.special import gammaln
+
+from ._typing import VectorLike
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 
 def plot_observed_vs_predicted(
-    y,
-    mu,
-    max_count=15,
-    alpha=None,
-    title="Observed vs Predicted Probabilities",
-    model_name="Model",
-    ax=None,
-    plot_params=None,
-):
+    y: VectorLike,
+    mu: VectorLike,
+    max_count: int = 15,
+    alpha: Optional[float] = None,
+    title: str = "Observed vs Predicted Probabilities",
+    model_name: str = "Model",
+    ax: Optional[Axes] = None,
+    plot_params: Optional[str] = None,
+) -> pd.DataFrame:
     """
     Plot observed vs predicted probabilities for count data.
 
@@ -35,11 +42,24 @@ def plot_observed_vs_predicted(
       If None, assumes Poisson (alpha=0).
     - title (str): Title for the plot.
     - model_name (str): Name of the model for labeling.
-    - ax (matplotlib.axes._subplots.AxesSubplot, optional): Matplotlib axis to plot on.
+    - ax (matplotlib.axes.Axes, optional): Matplotlib axis to plot on.
+    - plot_params (str, optional): "frequency" plots counts instead of probabilities.
 
     Returns:
-    - None. Plots the chart on the provided axis or creates a new one.
+    - pd.DataFrame with observed and predicted frequencies and probabilities per
+      count. The chart is drawn on the provided axis or the current one.
     """
+    try:
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import MaxNLocator
+    except ImportError as err:
+        raise ImportError(
+            "plot_observed_vs_predicted requires matplotlib. "
+            "Install it with: pip install 'fisher-scoring[plot]'"
+        ) from err
+
+    y = np.asarray(y, dtype=np.float64)
+    mu = np.asarray(mu, dtype=np.float64)
     counts = np.arange(0, max_count + 1)
     observed_probs = []
     predicted_probs = []

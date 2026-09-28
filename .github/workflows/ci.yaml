@@ -15,17 +15,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v1
       with:
         version: "latest"
-    
+
     - name: Cache uv
       uses: actions/cache@v3
       with:
@@ -34,16 +34,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-uv-${{ matrix.python-version }}-
           ${{ runner.os }}-uv-
-    
+
     - name: Install dependencies
       run: |
         uv sync --dev
         uv pip install -e .
-    
+
     - name: Run tests
       run: |
         uv run python -m pytest tests/ -v --tb=short
-    
+
     # Coverage reporting disabled until pytest-cov is added to dependencies
     # - name: Upload coverage to Codecov
     #   if: matrix.python-version == '3.11'
@@ -57,29 +57,80 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v1
       with:
         version: "latest"
-    
+
     - name: Install dependencies
       run: |
         uv sync --dev
         uv pip install -e .
-    
+
     - name: Run ruff
       run: |
-        uv run ruff check fisher_scoring/ tests/
+        uv run ruff check --target-version py39 fisher_scoring/ tests/
 
     - name: Run ruff format check
       run: |
-        uv run ruff format --check fisher_scoring/ tests/
+        uv run ruff format --check --target-version py39 fisher_scoring/ tests/
+
+  install-check:
+    # Install the built wheel into an empty environment so missing runtime
+    # dependencies fail here instead of for users after a release.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.12']
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        version: "latest"
+
+    - name: Build wheel
+      run: uv build --wheel --out-dir dist
+
+    - name: Install the wheel in a clean environment
+      run: |
+        uv venv /tmp/clean --python ${{ matrix.python-version }}
+        VIRTUAL_ENV=/tmp/clean uv pip install dist/*.whl
+
+    - name: Import and fit with runtime dependencies only
+      # Run outside the checkout so Python imports the installed wheel, not ./fisher_scoring
+      working-directory: /tmp
+      run: |
+        /tmp/clean/bin/python - <<'EOF'
+        import numpy as np
+        import fisher_scoring as fs
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(200, 2))
+        y = (X[:, 0] + rng.normal(size=200) > 0).astype(int)
+        assert "site-packages" in fs.__file__, fs.__file__
+        fs.LogisticRegression().fit(X, y)
+        fs.MultinomialLogisticRegression().fit(X, y)
+        fs.BradleyTerry(l2=0.1).fit([("A", "B"), ("B", "C"), ("A", "C")])
+        import fisher_scoring.utils
+        print("fisher_scoring", fs.__version__, "imports and fits without dev dependencies")
+        EOF
+
+    - name: Install and use the plot extra
+      run: |
+        VIRTUAL_ENV=/tmp/clean uv pip install "fisher-scoring[plot] @ file://$(ls $PWD/dist/*.whl)"
+        cd /tmp && MPLBACKEND=Agg /tmp/clean/bin/python -c "from fisher_scoring.utils import plot_observed_vs_predicted; plot_observed_vs_predicted([0, 1, 2], [0.5, 1.5, 2.0])"
 
   type-check:
     runs-on: ubuntu-latest

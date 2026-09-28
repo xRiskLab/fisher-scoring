@@ -41,6 +41,8 @@ from scipy.stats import norm
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
+from ._typing import MatrixLike, VectorLike
+
 
 class FocalLossRegression(ClassifierMixin, BaseEstimator):
     """
@@ -128,9 +130,7 @@ class FocalLossRegression(ClassifierMixin, BaseEstimator):
         return float(np.sum((xlogy(y, p) + xlogy(1 - y, 1 - p)) * focal_weight))
 
     @staticmethod
-    def invert_matrix(
-        matrix: np.ndarray, cond_threshold: float = 1e12
-    ) -> np.ndarray:
+    def invert_matrix(matrix: np.ndarray, cond_threshold: float = 1e12) -> np.ndarray:
         """
         Invert a matrix, falling back to the pseudo-inverse
         if the matrix is singular or near-singular.
@@ -161,7 +161,7 @@ class FocalLossRegression(ClassifierMixin, BaseEstimator):
         except np.linalg.LinAlgError:
             return np.linalg.pinv(matrix)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> FocalLossRegression:
+    def fit(self, X: MatrixLike, y: VectorLike) -> FocalLossRegression:
         """
         Fit the focal logistic regression model using Fisher scoring.
         """
@@ -268,7 +268,7 @@ class FocalLossRegression(ClassifierMixin, BaseEstimator):
         self.lower_bound = self.beta - critical_value * self.standard_errors
         self.upper_bound = self.beta + critical_value * self.standard_errors
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+    def predict_proba(self, X: MatrixLike) -> np.ndarray:
         """
         Predict the class probabilities for the input data X.
         """
@@ -284,14 +284,14 @@ class FocalLossRegression(ClassifierMixin, BaseEstimator):
         proba_class_1 = self.logistic_function(X @ self.beta)
         return np.column_stack([1 - proba_class_1, proba_class_1])
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: MatrixLike) -> np.ndarray:
         """
         Predict the target labels for the input data X.
         """
         probas = self.predict_proba(X)
         return (probas[:, 1] > 0.5).astype(int)
 
-    def predict_ci(self, X, method="logit"):
+    def predict_ci(self, X: MatrixLike, method: str = "logit") -> np.ndarray:
         """
         Compute confidence intervals for predicted probabilities or logits.
 
@@ -302,6 +302,7 @@ class FocalLossRegression(ClassifierMixin, BaseEstimator):
         Returns:
             np.ndarray: Array with lower and upper confidence intervals for predictions.
         """
+        X = np.asarray(X, dtype=np.float64)
         if self.use_bias:
             X = np.hstack([np.ones((X.shape[0], 1)), X])
 
@@ -359,7 +360,7 @@ class FocalLossRegression(ClassifierMixin, BaseEstimator):
             "upper_bound": self.upper_bound,
         }
 
-    def display_summary(self, style="default") -> None:
+    def display_summary(self, style: str = "default") -> None:
         """
         Display a summary for IPython notebooks or console output.
         Args:

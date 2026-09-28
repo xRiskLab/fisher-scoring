@@ -54,7 +54,7 @@ Paper, September 13, 2000.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -64,6 +64,8 @@ from rich.table import Table
 from scipy.optimize import minimize
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
+
+from ._typing import MatrixLike, VectorLike
 
 
 class DivergenceClassifier(ClassifierMixin, BaseEstimator):
@@ -152,7 +154,9 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
         self.feature_names: Optional[List[str]] = None
 
     @staticmethod
-    def _compute_moments(X: np.ndarray, y: np.ndarray) -> tuple:
+    def _compute_moments(
+        X: np.ndarray, y: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int]:
         """Compute class means and average within-class covariance."""
         mask_good = y == 0
         mask_bad = y == 1
@@ -220,11 +224,11 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
         """Solve the classic QP via scipy.optimize.minimize (SLSQP)."""
         C_obj = C + self.penalty * np.eye(n_features) if self.penalty > 0 else C
 
-        def objective(S):
-            return S @ C_obj @ S
+        def objective(S: np.ndarray) -> float:
+            return float(S @ C_obj @ S)
 
-        def gradient(S):
-            return 2 * C_obj @ S
+        def gradient(S: np.ndarray) -> np.ndarray:
+            return np.asarray(2 * C_obj @ S)
 
         # Mandatory constraint: d'S = δ
         constraints = [{"type": "eq", "fun": lambda S: d @ S - self.delta}]
@@ -287,8 +291,8 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
 
     def fit(
         self,
-        X: np.ndarray,
-        y: np.ndarray,
+        X: MatrixLike,
+        y: VectorLike,
     ) -> DivergenceClassifier:
         """
         Fit the divergence classifier.
@@ -373,7 +377,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
 
         return self
 
-    def score_samples(self, X: np.ndarray) -> np.ndarray:
+    def score_samples(self, X: MatrixLike) -> np.ndarray:
         """
         Compute raw scores for each observation.
 
@@ -395,7 +399,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
             scores = scores + self.bias_
         return np.asarray(scores)
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+    def predict_proba(self, X: MatrixLike) -> np.ndarray:
         """
         Predict class probabilities using the logistic function
         applied to the divergence score.
@@ -421,7 +425,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
         p_bad = np.clip(p_bad, 1e-10, 1 - 1e-10)
         return np.column_stack((1 - p_bad, p_bad))
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: MatrixLike) -> np.ndarray:
         """
         Predict class labels.
 
@@ -453,7 +457,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
             "verbose": self.verbose,
         }
 
-    def set_params(self, **params) -> DivergenceClassifier:
+    def set_params(self, **params: Any) -> DivergenceClassifier:
         for key, value in params.items():
             setattr(self, key, value)
         return self
@@ -465,7 +469,7 @@ class DivergenceClassifier(ClassifierMixin, BaseEstimator):
             "betas": self.beta_,
         }
 
-    def display_summary(self, style="default") -> None:
+    def display_summary(self, style: str = "default") -> None:
         """Display a summary table with divergence statistics."""
         console = Console()
         summary_dict = self.summary()

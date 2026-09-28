@@ -15,10 +15,12 @@ class TestDivergenceClassifier(unittest.TestCase):
         np.random.seed(42)
         # Two well-separated classes
         n = 200
-        self.X = np.vstack([
-            np.random.randn(n, 3) + [2, 0, 1],
-            np.random.randn(n, 3) + [-1, 1, -1],
-        ])
+        self.X = np.vstack(
+            [
+                np.random.randn(n, 3) + [2, 0, 1],
+                np.random.randn(n, 3) + [-1, 1, -1],
+            ]
+        )
         self.y = np.array([0] * n + [1] * n)
 
     def test_fit_sets_is_fitted(self):
@@ -156,9 +158,7 @@ class TestDivergenceClassifier(unittest.TestCase):
         model = DivergenceClassifier(A_eq=A_eq, b_eq=b_eq)
         model.fit(self.X, self.y)
         assert model.weights_ is not None
-        np.testing.assert_allclose(
-            model.weights_[0], model.weights_[1], atol=1e-4
-        )
+        np.testing.assert_allclose(model.weights_[0], model.weights_[1], atol=1e-4)
 
     def test_compute_divergence_static(self):
         """Test the static compute_divergence method."""

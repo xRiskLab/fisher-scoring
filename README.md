@@ -41,6 +41,7 @@ The packages provides implementations of logistic regression (MLE for binary, mu
 3. Multi-class classification problems: **Multinomial Logistic Regression**.
 4. Imbalanced classification problems: **Focal Loss Logistic Regression**.
 5. Count modeling problems: **Poisson Regression** and **Negative Binomial Regression**.
+6. Paired comparison problems: **Bradley-Terry Model**.
 
 ### Fisher Scoring Algorithm
 
@@ -58,7 +59,7 @@ Source: [Limitations of the Empirical Fisher Approximation for Natural Gradient 
 ### Implementation Notes
 
 - **Multinomial Logistic Regression**  
-  The `MultinomialLogisticRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than $K - 1$. This approach allows multi-class classification problems to be converted to binary problems by calculating $1 - P_{Class=1}$.
+  The `MultinomialLogisticRegression` model differs from standard statistical multinomial logistic regression by using all classes rather than $K - 1$. This approach allows multi-class classification problems to be converted to binary problems by calculating $1 - P_{Class=1}$. As in scikit-learn, the class coefficients are identified by summing to zero across classes; standard errors come from the full $pK \times pK$ Fisher information, so any contrast $\beta_k - \beta_j$ matches a reference-class fit such as statsmodels `MNLogit`.
 
 - **Focal Loss Regression**  
   The `FocalLossRegression` class employs a non-standard focal log-likelihood function in its optimization process leveraging $\gamma$ to focus on difficult-to-classify examples.
@@ -139,7 +140,7 @@ The `MultinomialLogisticRegression` class implements the Fisher Scoring algorith
 - `summary(class_idx)`: Get a summary of model parameters, standard errors, p-values, and confidence intervals for a specific class.
 - `display_summary(class_idx)`: Display a summary of model parameters, standard errors, p-values, and confidence intervals for a specific class.
 
-The algorithm is in a beta version and may require further testing and optimization to speed up matrix operations.
+**Attributes:** `classes_` (labels can be any values; `predict` returns them), `coef_` of shape (n_classes, n_features), `intercept_` of shape (n_classes,), `covariance_` (the $pK \times pK$ covariance, parameters stacked class by class), and `n_iter_`.
 
 ### Focal Loss Regression
 
@@ -218,9 +219,56 @@ The `NegativeBinomialRegression` class implements the Fisher Scoring algorithm f
 - **Statistical Summaries**: Complete inference statistics with Wald tests and confidence intervals.
 - **Enhanced Reliability**: Comprehensive testing ensures mathematical correctness.
 
+### Bradley-Terry Model
+
+The `BradleyTerry` class implements the Fisher Scoring algorithm for paired comparisons, where `logit P(i beats j) = lambda_i - lambda_j`. Abilities are identified with a sum-to-zero constraint (or relative to a `reference` item), and the expected information matrix is the weighted graph Laplacian of the comparison graph.
+
+Data follow the scikit-learn layout: each row of `X` is one comparison, the first two columns are the items (`item1`, `item2`), and any further columns are comparison-level covariates. `y` is 1 if item1 won, 0 if item2 won and 0.5 for a tie. The model works with `train_test_split`, `cross_val_score` and `GridSearchCV`.
+
+```python
+from fisher_scoring import BradleyTerry, pairs_from_counts
+
+# A list of (winner, loser) tuples: y defaults to item1 winning every row.
+model = BradleyTerry(l2=0.1).fit([("A", "B"), ("B", "C"), ("A", "C"), ("C", "A")])
+
+# Aggregated win/loss counts with a home advantage.
+X, y, w = pairs_from_counts(df, "home", "away", "home_wins", "away_wins")
+model = BradleyTerry(use_bias=True, reference="Baltimore")
+model.fit(X, y, sample_weight=w)
+model.predict_proba([("Milwaukee", "Boston")])
+model.display_summary()
+```
+
+**Parameters:**
+- `epsilon`: Convergence threshold on the parameter update norm.
+- `max_iter`: Maximum number of Fisher scoring iterations.
+- `information`: Type of information matrix to use ('expected' or 'empirical').
+- `use_bias`: Add an order-effect / home-advantage term for the first-listed item.
+- `l2`: Ridge penalty that keeps estimates finite for unbeaten or winless items.
+- `reference`: Item whose ability is fixed at zero for reporting (default: mean-centered).
+- `significance`: Significance level for confidence intervals.
+- `max_halvings`: Maximum step halvings per iteration when a full step lowers the likelihood.
+
+**Methods:**
+- `fit(X, y=None, sample_weight=None, item_features=None, offset=None)`: Fit the model. `y` defaults to item1 winning every row.
+- `predict(X)`: Predict 1 if item1 is favoured.
+- `predict_proba(X)`: Predict [P(item2 wins), P(item1 wins)].
+- `predict_ci(X, method="logit")`: Confidence intervals for P(item1 wins).
+- `score(X, y=None, sample_weight=None)`: Mean log-likelihood per comparison (used by scikit-learn model selection).
+- `rank()`: Items sorted by ability with standard errors.
+- `fisher_information(information=None, penalized=False)`: Labelled information matrix at the fitted parameters.
+- `summary()`, `summary_frame()`, `display_summary()`: Model statistics as a dict, a DataFrame, or a Rich table.
+
+**Key Features:**
+- **Extensions**: Order effect, comparison-level covariates (extra columns of `X`), and item-level covariates (`item_features`, where `lambda_i = z_i' gamma`) can be combined.
+- **Aggregated Data**: Frequency weights (`sample_weight`) and the `pairs_from_counts` helper fit win/loss counts without expanding rows.
+- **Validated Accuracy**: Estimates, standard errors and information matrices match R's `BradleyTerry2` and `glm`, and `choix` (`l2 = 2 * alpha` for `choix.opt_pairwise`).
+
 ## Utilities
 
 ### Visualization
+
+Plotting needs matplotlib, available as an optional extra: `pip install "fisher-scoring[plot]"`.
 
 The package includes a utility function for visualizing observed vs predicted probabilities for count data, which can be useful for users working with Poisson and Negative Binomial models.
 

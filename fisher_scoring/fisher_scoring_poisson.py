@@ -13,7 +13,7 @@ The implementation details are from J. Hilbe. Modeling Count Data. Cambridge Uni
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 from rich.console import Console
@@ -21,23 +21,25 @@ from rich.panel import Panel
 from rich.table import Table
 from scipy.stats import norm
 
+from ._typing import MatrixLike, VectorLike
+
 
 class PoissonRegression:
     """Poisson regression using Fisher scoring method."""
 
     def __init__(
         self,
-        max_iter=100,
-        epsilon=1e-5,
-        use_bias=True,
-        offset=None,
-        significance=0.05,
-        information="expected",
-    ):
+        max_iter: int = 100,
+        epsilon: float = 1e-5,
+        use_bias: bool = True,
+        offset: Optional[np.ndarray] = None,
+        significance: float = 0.05,
+        information: str = "expected",
+    ) -> None:
         self.max_iter = max_iter
         self.epsilon = epsilon
         self.use_bias = use_bias
-        self.weights = None
+        self.weights: Optional[np.ndarray] = None
         self.offset = offset
         self.significance = significance
         self.information = information
@@ -48,16 +50,14 @@ class PoissonRegression:
         self.upper_bound: Optional[np.ndarray] = None
         self.fitted_X: Optional[np.ndarray] = None
         self.feature_names: Optional[List[str]] = None
-        self.information_matrix: Dict[str, List] = {
+        self.information_matrix: Dict[str, List[Union[int, np.ndarray]]] = {
             "iteration": [],
             "information": [],
         }
         self.loss_history: List[float] = []
 
     @staticmethod
-    def invert_matrix(
-        matrix: np.ndarray, cond_threshold: float = 1e12
-    ) -> np.ndarray:
+    def invert_matrix(matrix: np.ndarray, cond_threshold: float = 1e12) -> np.ndarray:
         """
         Invert a matrix, falling back to the pseudo-inverse
         if the matrix is singular or near-singular.
@@ -88,7 +88,7 @@ class PoissonRegression:
         except np.linalg.LinAlgError:
             return np.linalg.pinv(matrix)
 
-    def fit(self, x, y) -> PoissonRegression:
+    def fit(self, x: MatrixLike, y: VectorLike) -> PoissonRegression:
         """
         Fit the Poisson regression model using Fisher scoring.
         """
@@ -97,8 +97,8 @@ class PoissonRegression:
             self.feature_names = x.columns.tolist()
 
         # Convert to numpy arrays
-        x = np.array(x)
-        y = np.array(y)
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
 
         # Add a column of ones to X for the intercept
         X = np.hstack([np.ones((x.shape[0], 1)), x]) if self.use_bias else x
@@ -158,19 +158,20 @@ class PoissonRegression:
         self.compute_statistics()
         return self
 
-    def calculate_st_errors(self, x):
+    def calculate_st_errors(self, x: MatrixLike) -> np.ndarray:
         """
         Calculate standard errors for the coefficients.
         """
+        x = np.asarray(x, dtype=np.float64)
         # Add a column of ones to X for the intercept
         X = np.hstack([np.ones((x.shape[0], 1)), x]) if self.use_bias else x
         eta = X @ self.weights + self.offset
         mu = np.exp(eta)
         W = np.diag(mu)
         information = X.T @ W @ X
-        return np.sqrt(np.diag(self.invert_matrix(information)))
+        return np.asarray(np.sqrt(np.diag(self.invert_matrix(information))))
 
-    def predict(self, x, offset=None):
+    def predict(self, x: MatrixLike, offset: Optional[VectorLike] = None) -> np.ndarray:
         """
         Predict mean values for the Poisson model.
 
@@ -179,6 +180,7 @@ class PoissonRegression:
         - offset: Optional offset for prediction. If None, uses the training offset
                  (expanded to match prediction data size if needed)
         """
+        x = np.asarray(x, dtype=np.float64)
         # Predict mean values
         X = np.hstack([np.ones((x.shape[0], 1)), x]) if self.use_bias else x
 
@@ -194,8 +196,8 @@ class PoissonRegression:
             else:
                 # Default to zeros if training offset size doesn't match
                 offset = np.zeros(X.shape[0])
-        eta = X @ self.weights + offset
-        return np.exp(eta)  # Return mean predictions (inverse link)
+        eta = X @ self.weights + np.asarray(offset, dtype=np.float64)
+        return np.asarray(np.exp(eta))  # Return mean predictions (inverse link)
 
     def compute_statistics(self) -> None:
         """Compute the standard errors, Wald statistic, p-values, and confidence intervals."""
@@ -316,15 +318,15 @@ class NegativeBinomialRegression:
 
     def __init__(
         self,
-        max_iter=100,
-        epsilon=1e-5,
-        use_bias=False,
-        alpha=1.0,
-        phi=1.0,
-        offset=None,
-        significance=0.05,
-        information="expected",
-    ):
+        max_iter: int = 100,
+        epsilon: float = 1e-5,
+        use_bias: bool = False,
+        alpha: float = 1.0,
+        phi: float = 1.0,
+        offset: Optional[np.ndarray] = None,
+        significance: float = 0.05,
+        information: str = "expected",
+    ) -> None:
         """
         Poisson regression with a fixed alpha for dispersion adjustment.
 
@@ -340,7 +342,7 @@ class NegativeBinomialRegression:
         self.max_iter = max_iter
         self.epsilon = epsilon
         self.use_bias = use_bias
-        self.weights = None
+        self.weights: Optional[np.ndarray] = None
         self.alpha = alpha  # Fixed overdispersion parameter
         self.phi = phi  # Scale parameter
         self.offset = offset
@@ -353,16 +355,14 @@ class NegativeBinomialRegression:
         self.upper_bound: Optional[np.ndarray] = None
         self.fitted_X: Optional[np.ndarray] = None
         self.feature_names: Optional[List[str]] = None
-        self.information_matrix: Dict[str, List] = {
+        self.information_matrix: Dict[str, List[Union[int, np.ndarray]]] = {
             "iteration": [],
             "information": [],
         }
         self.loss_history: List[float] = []
 
     @staticmethod
-    def invert_matrix(
-        matrix: np.ndarray, cond_threshold: float = 1e12
-    ) -> np.ndarray:
+    def invert_matrix(matrix: np.ndarray, cond_threshold: float = 1e12) -> np.ndarray:
         """
         Invert a matrix, falling back to the pseudo-inverse
         if the matrix is singular or near-singular.
@@ -393,7 +393,7 @@ class NegativeBinomialRegression:
         except np.linalg.LinAlgError:
             return np.linalg.pinv(matrix)
 
-    def fit(self, x, y) -> NegativeBinomialRegression:
+    def fit(self, x: MatrixLike, y: VectorLike) -> NegativeBinomialRegression:
         """
         Fit the Negative Binomial regression model using Fisher scoring.
         """
@@ -402,8 +402,8 @@ class NegativeBinomialRegression:
             self.feature_names = x.columns.tolist()
 
         # Convert to numpy arrays
-        x = np.array(x)
-        y = np.array(y)
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
 
         # Add intercept if necessary
         X = np.hstack([np.ones((x.shape[0], 1)), x]) if self.use_bias else x
@@ -469,10 +469,11 @@ class NegativeBinomialRegression:
         self.compute_statistics()
         return self
 
-    def calculate_st_errors(self, x):
+    def calculate_st_errors(self, x: MatrixLike) -> np.ndarray:
         """
         Calculate standard errors for the coefficients.
         """
+        x = np.asarray(x, dtype=np.float64)
         X = np.hstack([np.ones((x.shape[0], 1)), x]) if self.use_bias else x
         eta = X @ self.weights + self.offset
         mu = np.exp(eta)
@@ -480,9 +481,9 @@ class NegativeBinomialRegression:
         W_diag = 1 / (self.phi * variance * (1 / mu) ** 2)
         W = np.diag(W_diag)
         XtWX = X.T @ W @ X
-        return np.sqrt(np.diag(self.invert_matrix(XtWX)))
+        return np.asarray(np.sqrt(np.diag(self.invert_matrix(XtWX))))
 
-    def predict(self, x, offset=None):
+    def predict(self, x: MatrixLike, offset: Optional[VectorLike] = None) -> np.ndarray:
         """
         Predict mean values for the Negative Binomial model.
 
@@ -491,6 +492,7 @@ class NegativeBinomialRegression:
         - offset: Optional offset for prediction. If None, uses the training offset
                  (expanded to match prediction data size if needed)
         """
+        x = np.asarray(x, dtype=np.float64)
         X = np.hstack([np.ones((x.shape[0], 1)), x]) if self.use_bias else x
 
         if offset is None:
@@ -505,8 +507,8 @@ class NegativeBinomialRegression:
             else:
                 # Default to zeros if training offset size doesn't match
                 offset = np.zeros(X.shape[0])
-        eta = X @ self.weights + offset
-        return np.exp(eta)
+        eta = X @ self.weights + np.asarray(offset, dtype=np.float64)
+        return np.asarray(np.exp(eta))
 
     def compute_statistics(self) -> None:
         """Compute the standard errors, Wald statistic, p-values, and confidence intervals."""
