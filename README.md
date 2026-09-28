@@ -223,13 +223,19 @@ The `NegativeBinomialRegression` class implements the Fisher Scoring algorithm f
 
 The `BradleyTerry` class implements the Fisher Scoring algorithm for paired comparisons, where `logit P(i beats j) = lambda_i - lambda_j`. Abilities are identified with a sum-to-zero constraint (or relative to a `reference` item), and the expected information matrix is the weighted graph Laplacian of the comparison graph.
 
+Data follow the scikit-learn layout: each row of `X` is one comparison, the first two columns are the items (`item1`, `item2`), and any further columns are comparison-level covariates. `y` is 1 if item1 won, 0 if item2 won and 0.5 for a tie. The model works with `train_test_split`, `cross_val_score` and `GridSearchCV`.
+
 ```python
 from fisher_scoring import BradleyTerry, pairs_from_counts
 
-item1, item2, y, w = pairs_from_counts(df, "home", "away", "home_wins", "away_wins")
+# A list of (winner, loser) tuples: y defaults to item1 winning every row.
+model = BradleyTerry(l2=0.1).fit([("A", "B"), ("B", "C"), ("A", "C"), ("C", "A")])
+
+# Aggregated win/loss counts with a home advantage.
+X, y, w = pairs_from_counts(df, "home", "away", "home_wins", "away_wins")
 model = BradleyTerry(use_bias=True, reference="Baltimore")
-model.fit(item1, item2, y, weights=w)
-model.predict_proba(["Milwaukee"], ["Boston"])
+model.fit(X, y, sample_weight=w)
+model.predict_proba([("Milwaukee", "Boston")])
 model.display_summary()
 ```
 
@@ -244,18 +250,19 @@ model.display_summary()
 - `max_halvings`: Maximum step halvings per iteration when a full step lowers the likelihood.
 
 **Methods:**
-- `fit(item1, item2, y=None, X=None, weights=None, item_features=None, offset=None)`: Fit the model. `y` is 1 if item1 won, 0 if item2 won, 0.5 for a tie (defaults to item1 winning every row).
-- `predict(item1, item2, X=None)`: Predict 1 if item1 is favoured.
-- `predict_proba(item1, item2, X=None)`: Predict [P(item2 wins), P(item1 wins)].
-- `predict_ci(item1, item2, X=None, method="logit")`: Confidence intervals for P(item1 wins).
+- `fit(X, y=None, sample_weight=None, item_features=None, offset=None)`: Fit the model. `y` defaults to item1 winning every row.
+- `predict(X)`: Predict 1 if item1 is favoured.
+- `predict_proba(X)`: Predict [P(item2 wins), P(item1 wins)].
+- `predict_ci(X, method="logit")`: Confidence intervals for P(item1 wins).
+- `score(X, y=None, sample_weight=None)`: Mean log-likelihood per comparison (used by scikit-learn model selection).
 - `rank()`: Items sorted by ability with standard errors.
 - `fisher_information(information=None, penalized=False)`: Labelled information matrix at the fitted parameters.
 - `summary()`, `summary_frame()`, `display_summary()`: Model statistics as a dict, a DataFrame, or a Rich table.
 
 **Key Features:**
-- **Extensions**: Order effect, comparison-level covariates (`X`), and item-level covariates (`item_features`, where `lambda_i = z_i' gamma`) can be combined.
-- **Aggregated Data**: Frequency `weights` and the `pairs_from_counts` helper fit win/loss counts without expanding rows.
-- **Validated Accuracy**: Estimates, standard errors and information matrices match R's `BradleyTerry2` and `glm`.
+- **Extensions**: Order effect, comparison-level covariates (extra columns of `X`), and item-level covariates (`item_features`, where `lambda_i = z_i' gamma`) can be combined.
+- **Aggregated Data**: Frequency weights (`sample_weight`) and the `pairs_from_counts` helper fit win/loss counts without expanding rows.
+- **Validated Accuracy**: Estimates, standard errors and information matrices match R's `BradleyTerry2` and `glm`, and `choix` (`l2 = 2 * alpha` for `choix.opt_pairwise`).
 
 ## Utilities
 

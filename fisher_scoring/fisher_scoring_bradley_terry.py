@@ -23,7 +23,7 @@ three optional extensions, which can be combined freely:
        logit P(i beats j) = lambda_i - lambda_j + bias
    where `bias` is the advantage of the first-listed item of every comparison.
 
-2. Comparison-level covariates (`X` in `fit`)
+2. Comparison-level covariates (columns of `X` after the two item columns)
        logit P(i beats j) = lambda_i - lambda_j + x_ij' beta
    e.g. a rest-days difference, a surface indicator, or a DPO-style log-ratio.
 
@@ -38,6 +38,12 @@ rank-one term c * 11' to the ability block of the information matrix; because th
 score is orthogonal to the constant vector, the Fisher scoring step is then exactly the
 Moore-Penrose (constrained) step and the iterates remain mean-centered. Estimates can
 be reported relative to a `reference` item instead.
+
+Data follow the scikit-learn layout: `X` has one row per comparison, its first two
+columns identify the items (e.g. a list of `(item1, item2)` tuples or a DataFrame),
+and `y` is 1 if item1 won, 0 if item2 won and 0.5 for a tie. `sample_weight` holds
+frequency weights, so the model works with `train_test_split`, `cross_val_score`
+and `GridSearchCV`; `score` is the mean log-likelihood per comparison.
 
 Standard errors, Wald statistics, p-values and confidence intervals are obtained from
 the inverse information matrix at the MLE, using either the expected or the empirical
@@ -69,7 +75,7 @@ from scipy.stats import norm
 from sklearn.base import BaseEstimator
 from sklearn.exceptions import NotFittedError
 
-ArrayLike = Union[np.ndarray, pd.Series, pd.DataFrame, list]
+from ._typing import ComparisonsLike, VectorLike
 
 
 class BradleyTerry(BaseEstimator):
@@ -99,6 +105,13 @@ class BradleyTerry(BaseEstimator):
     max_halvings : int
         Maximum number of step halvings per iteration when a full Fisher scoring
         step would lower the penalised log-likelihood.
+
+    Examples
+    --------
+    >>> X = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "A")]
+    >>> model = BradleyTerry(l2=0.1).fit(X, [1, 1, 1, 0])
+    >>> model.predict_proba([("A", "C")]).shape
+    (1, 2)
     """
 
     def __init__(
@@ -235,41 +248,47 @@ class BradleyTerry(BaseEstimator):
         except np.linalg.LinAlgError:
             return np.linalg.pinv(matrix)
 
-    def _check_items(
-        self, item1: ArrayLike, item2: ArrayLike
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        p1 = np.asarray(pd.Series(item1).astype(object)).reshape(-1)
-        p2 = np.asarray(pd.Series(item2).astype(object)).reshape(-1)
-        if p1.shape != p2.shape:
-            raise ValueError("item1 and item2 must have the same length.")
-        # Comparing an item with itself is allowed: the ability contrast is zero,
-        # so such rows inform only the order effect and the covariates.
-        return p1, p2
+    def _split_X(
+        self, X: ComparisonsLike, fitting: bool
+    ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+        """Split X into the two item columns and the comparison covariates.
 
-    def _check_X(
-        self, X: Optional[ArrayLike], n: int, fitting: bool
-    ) -> Optional[np.ndarray]:
-        """Validate comparison-level covariates and record their names when fitting."""
-        if X is None:
-            if fitting:
-                self.feature_names = None
-            elif self.feature_names:
+        X has one row per comparison. The first two columns identify the items;
+        item1 is the side that `y` and the order effect refer to. Any further
+        columns are numeric comparison-level covariates. Comparing an item with
+        itself is allowed: the ability contrast is zero, so such rows inform only
+        the order effect and the covariates.
+        """
+        if isinstance(X, pd.DataFrame):
+            if X.shape[1] < 2:
+                raise ValueError("X must have at least two columns (item1, item2).")
+            item1 = X.iloc[:, 0].to_numpy(dtype=object)
+            item2 = X.iloc[:, 1].to_numpy(dtype=object)
+            covariates = X.iloc[:, 2:]
+            names = [str(c) for c in covariates.columns]
+            cov = covariates.to_numpy(dtype=np.float64)
+        else:
+            arr = np.asarray(X, dtype=object)
+            if arr.ndim != 2 or arr.shape[1] < 2:
                 raise ValueError(
-                    "The model was fitted with covariates X; pass X to predict."
+                    "X must have shape (n_comparisons, 2 + n_covariates), e.g. a "
+                    "list of (item1, item2) tuples."
                 )
-            return None
-        names = X.columns.tolist() if isinstance(X, pd.DataFrame) else None
-        X_arr = np.asarray(X, dtype=np.float64).reshape(n, -1)
+            item1, item2 = arr[:, 0], arr[:, 1]
+            cov = arr[:, 2:].astype(np.float64)
+            names = [f"x{i}" for i in range(cov.shape[1])]
+
+        n_cov = cov.shape[1]
         if fitting:
-            self.feature_names = names or [f"x{i}" for i in range(X_arr.shape[1])]
-        elif self.feature_names is None:
-            raise ValueError("The model was fitted without covariates X.")
-        elif X_arr.shape[1] != len(self.feature_names):
-            raise ValueError(
-                f"X has {X_arr.shape[1]} columns; the model was fitted with "
-                f"{len(self.feature_names)}."
-            )
-        return X_arr
+            self.feature_names = names or None
+        else:
+            expected = len(self.feature_names or [])
+            if n_cov != expected:
+                raise ValueError(
+                    f"X has {n_cov} covariate columns after the item columns; "
+                    f"the model was fitted with {expected}."
+                )
+        return item1, item2, (cov if n_cov else None)
 
     def _build_design(
         self,
@@ -307,27 +326,26 @@ class BradleyTerry(BaseEstimator):
 
     def fit(
         self,
-        item1: ArrayLike,
-        item2: ArrayLike,
-        y: Optional[ArrayLike] = None,
-        X: Optional[ArrayLike] = None,
-        weights: Optional[ArrayLike] = None,
+        X: ComparisonsLike,
+        y: Optional[VectorLike] = None,
+        sample_weight: Optional[VectorLike] = None,
         item_features: Optional[pd.DataFrame] = None,
-        offset: Optional[ArrayLike] = None,
+        offset: Optional[VectorLike] = None,
     ) -> BradleyTerry:
         """Fit the Bradley-Terry model using Fisher scoring.
 
         Parameters
         ----------
-        item1, item2 : array-like of shape (n,)
-            Identifiers of the two items in each comparison. With `use_bias=True`,
-            `item1` is the side that receives the order/home advantage.
+        X : array-like of shape (n, 2 + k)
+            One row per comparison, e.g. a list of `(item1, item2)` tuples or a
+            DataFrame. The first two columns identify the items; with
+            `use_bias=True`, item1 is the side that receives the order/home
+            advantage. Further columns are comparison-level covariates entering
+            the logit additively.
         y : array-like of shape (n,), optional
             1 if item1 won, 0 if item2 won, 0.5 for a tie. Defaults to all ones,
-            i.e. `item1` is the winner of every row.
-        X : array-like of shape (n, k), optional
-            Comparison-level covariates entering the logit additively.
-        weights : array-like of shape (n,), optional
+            i.e. item1 is the winner of every row.
+        sample_weight : array-like of shape (n,), optional
             Frequency weights (number of times the row was observed). Use these to fit
             aggregated win/loss counts without expanding the data.
         item_features : DataFrame indexed by item, optional
@@ -339,20 +357,19 @@ class BradleyTerry(BaseEstimator):
             `l2` penalty this gives a reference-anchored fit: the parameters are the
             smallest adjustment to the offset model that explains the comparisons.
         """
-        p1, p2 = self._check_items(item1, item2)
+        p1, p2, X_arr = self._split_X(X, fitting=True)
         n = len(p1)
         self.n_comparisons_ = n
 
         y_arr = self._check_vector(y, n, "y", fill=1.0)
         if np.any((y_arr < 0) | (y_arr > 1)):
             raise ValueError("y must lie in [0, 1] (use 0.5 for ties).")
-        w = self._check_vector(weights, n, "weights", fill=1.0)
+        w = self._check_vector(sample_weight, n, "sample_weight", fill=1.0)
         if np.any(w < 0):
-            raise ValueError("weights must be non-negative.")
+            raise ValueError("sample_weight must be non-negative.")
         off = self._check_vector(offset, n, "offset", fill=0.0)
 
         self._set_items(p1, p2, item_features)
-        X_arr = self._check_X(X, n, fitting=True)
         D = self._build_design(p1, p2, X_arr)
         self.param_names_ = self._make_param_names()
         n_ab = self._n_ability_params
@@ -410,14 +427,14 @@ class BradleyTerry(BaseEstimator):
 
     @staticmethod
     def _check_vector(
-        values: Optional[ArrayLike], n: int, name: str, fill: float
+        values: Optional[VectorLike], n: int, name: str, fill: float
     ) -> np.ndarray:
         """Return `values` as a float vector of length n, or a constant if None."""
         if values is None:
             return np.full(n, fill)
         arr = np.asarray(values, dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
-            raise ValueError(f"{name} must have the same length as item1/item2.")
+            raise ValueError(f"{name} must have one entry per row of X.")
         return arr
 
     def _set_items(
@@ -599,63 +616,65 @@ class BradleyTerry(BaseEstimator):
             )
 
     def _linear_predictor(
-        self,
-        item1: ArrayLike,
-        item2: ArrayLike,
-        X: Optional[ArrayLike],
-        offset: Optional[ArrayLike] = None,
+        self, X: ComparisonsLike, offset: Optional[VectorLike] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
         self._check_is_fitted()
-        p1, p2 = self._check_items(item1, item2)
-        X_arr = self._check_X(X, len(p1), fitting=False)
+        assert self.beta is not None
+        p1, p2, X_arr = self._split_X(X, fitting=False)
         D = self._build_design(p1, p2, X_arr)
-        off = (
-            0.0 if offset is None else np.asarray(offset, dtype=np.float64).reshape(-1)
-        )
+        off = self._check_vector(offset, len(p1), "offset", fill=0.0)
         # Reported parameters differ from the internal ones by a constant shift of the
         # ability block, which cancels in every contrast, so D @ beta is unchanged.
         return D, D @ self.beta + off
 
     def predict_proba(
-        self,
-        item1: ArrayLike,
-        item2: ArrayLike,
-        X: Optional[ArrayLike] = None,
-        offset: Optional[ArrayLike] = None,
+        self, X: ComparisonsLike, offset: Optional[VectorLike] = None
     ) -> np.ndarray:
         """Predict [P(item2 wins), P(item1 wins)] for each comparison.
 
         Follows the sklearn layout: column 1 is the probability of y = 1, i.e.
         that item1 wins.
         """
-        _, eta = self._linear_predictor(item1, item2, X, offset)
+        _, eta = self._linear_predictor(X, offset)
         proba_1 = self.logistic_function(eta)
         return np.column_stack((1 - proba_1, proba_1))
 
     def predict(
-        self,
-        item1: ArrayLike,
-        item2: ArrayLike,
-        X: Optional[ArrayLike] = None,
-        offset: Optional[ArrayLike] = None,
+        self, X: ComparisonsLike, offset: Optional[VectorLike] = None
     ) -> np.ndarray:
         """Predict 1 if item1 is favoured to beat item2, else 0."""
-        return (self.predict_proba(item1, item2, X, offset)[:, 1] > 0.5).astype(int)
+        return (self.predict_proba(X, offset)[:, 1] > 0.5).astype(int)
+
+    def score(
+        self,
+        X: ComparisonsLike,
+        y: Optional[VectorLike] = None,
+        sample_weight: Optional[VectorLike] = None,
+        offset: Optional[VectorLike] = None,
+    ) -> float:
+        """Mean log-likelihood per comparison (higher is better).
+
+        Used by scikit-learn model selection (`cross_val_score`, `GridSearchCV`).
+        Accuracy is not used because outcomes may be ties (y = 0.5).
+        """
+        proba_1 = self.predict_proba(X, offset)[:, 1]
+        n = len(proba_1)
+        y_arr = self._check_vector(y, n, "y", fill=1.0)
+        w = self._check_vector(sample_weight, n, "sample_weight", fill=1.0)
+        return self.compute_loss(y_arr, proba_1, w) / float(w.sum())
 
     def predict_ci(
         self,
-        item1: ArrayLike,
-        item2: ArrayLike,
-        X: Optional[ArrayLike] = None,
+        X: ComparisonsLike,
         method: str = "logit",
-        offset: Optional[ArrayLike] = None,
+        offset: Optional[VectorLike] = None,
     ) -> np.ndarray:
         """Confidence intervals for P(item1 wins).
 
         method="logit" builds the interval on the logit scale and maps it back;
         method="proba" uses the delta method directly on the probability.
         """
-        D, eta = self._linear_predictor(item1, item2, X, offset)
+        D, eta = self._linear_predictor(X, offset)
         assert self.covariance_ is not None
         proba = self.logistic_function(eta)
         z_crit = norm.ppf(1 - self.significance / 2)
@@ -843,15 +862,23 @@ def pairs_from_counts(
     item2: str,
     wins1: str,
     wins2: str,
-) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
-    """Turn an aggregated win-count table into weighted long format for `BradleyTerry.fit`.
+    covariates: Optional[List[str]] = None,
+) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """Turn an aggregated win-count table into `(X, y, sample_weight)` for `fit`.
 
     Each input row becomes two rows: (item1, item2, y=1, weight=wins1) and
     (item1, item2, y=0, weight=wins2). `item1` keeps its role in both, so
-    `use_bias=True` estimates a `item1` (e.g. home) advantage.
+    `use_bias=True` estimates an `item1` (e.g. home) advantage. Columns listed
+    in `covariates` are carried into `X` after the two item columns. Rows with
+    zero weight are dropped.
     """
-    rows_won = df[[item1, item2]].assign(y=1.0, weight=df[wins1].astype(float))
-    rows_lost = df[[item1, item2]].assign(y=0.0, weight=df[wins2].astype(float))
+    columns = [item1, item2] + list(covariates or [])
+    rows_won = df[columns].assign(_y=1.0, _w=df[wins1].astype(float))
+    rows_lost = df[columns].assign(_y=0.0, _w=df[wins2].astype(float))
     long = pd.concat([rows_won, rows_lost], ignore_index=True)
-    long = long[long["weight"] > 0].reset_index(drop=True)
-    return long[item1], long[item2], long["y"], long["weight"]
+    long = long[long["_w"] > 0].reset_index(drop=True)
+    return (
+        long[columns],
+        long["_y"].rename("y"),
+        long["_w"].rename("sample_weight"),
+    )
