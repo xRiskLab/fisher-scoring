@@ -41,6 +41,7 @@ The packages provides implementations of logistic regression (MLE for binary, mu
 3. Multi-class classification problems: **Multinomial Logistic Regression**.
 4. Imbalanced classification problems: **Focal Loss Logistic Regression**.
 5. Count modeling problems: **Poisson Regression** and **Negative Binomial Regression**.
+6. Paired comparison problems: **Bradley-Terry Model**.
 
 ### Fisher Scoring Algorithm
 
@@ -217,6 +218,44 @@ The `NegativeBinomialRegression` class implements the Fisher Scoring algorithm f
 - **Robust Implementation**: Safe matrix inversion with automatic pseudo-inverse fallback.
 - **Statistical Summaries**: Complete inference statistics with Wald tests and confidence intervals.
 - **Enhanced Reliability**: Comprehensive testing ensures mathematical correctness.
+
+### Bradley-Terry Model
+
+The `BradleyTerry` class implements the Fisher Scoring algorithm for paired comparisons, where `logit P(i beats j) = lambda_i - lambda_j`. Abilities are identified with a sum-to-zero constraint (or relative to a `reference` item), and the expected information matrix is the weighted graph Laplacian of the comparison graph.
+
+```python
+from fisher_scoring import BradleyTerry, pairs_from_counts
+
+item1, item2, y, w = pairs_from_counts(df, "home", "away", "home_wins", "away_wins")
+model = BradleyTerry(use_bias=True, reference="Baltimore")
+model.fit(item1, item2, y, weights=w)
+model.predict_proba(["Milwaukee"], ["Boston"])
+model.display_summary()
+```
+
+**Parameters:**
+- `epsilon`: Convergence threshold on the parameter update norm.
+- `max_iter`: Maximum number of Fisher scoring iterations.
+- `information`: Type of information matrix to use ('expected' or 'empirical').
+- `use_bias`: Add an order-effect / home-advantage term for the first-listed item.
+- `l2`: Ridge penalty that keeps estimates finite for unbeaten or winless items.
+- `reference`: Item whose ability is fixed at zero for reporting (default: mean-centered).
+- `significance`: Significance level for confidence intervals.
+- `max_halvings`: Maximum step halvings per iteration when a full step lowers the likelihood.
+
+**Methods:**
+- `fit(item1, item2, y=None, X=None, weights=None, item_features=None, offset=None)`: Fit the model. `y` is 1 if item1 won, 0 if item2 won, 0.5 for a tie (defaults to item1 winning every row).
+- `predict(item1, item2, X=None)`: Predict 1 if item1 is favoured.
+- `predict_proba(item1, item2, X=None)`: Predict [P(item2 wins), P(item1 wins)].
+- `predict_ci(item1, item2, X=None, method="logit")`: Confidence intervals for P(item1 wins).
+- `rank()`: Items sorted by ability with standard errors.
+- `fisher_information(information=None, penalized=False)`: Labelled information matrix at the fitted parameters.
+- `summary()`, `summary_frame()`, `display_summary()`: Model statistics as a dict, a DataFrame, or a Rich table.
+
+**Key Features:**
+- **Extensions**: Order effect, comparison-level covariates (`X`), and item-level covariates (`item_features`, where `lambda_i = z_i' gamma`) can be combined.
+- **Aggregated Data**: Frequency `weights` and the `pairs_from_counts` helper fit win/loss counts without expanding rows.
+- **Validated Accuracy**: Estimates, standard errors and information matrices match R's `BradleyTerry2` and `glm`.
 
 ## Utilities
 

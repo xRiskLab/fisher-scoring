@@ -1,5 +1,11 @@
 # Changelog
 
+- **v2.0.7**
+  - **New**: Added `BradleyTerry` class for paired comparisons fitted with Fisher scoring. Supports an order effect / home advantage (`use_bias`), comparison-level covariates (`X`), item-level covariates (`item_features`), frequency weights, ties (y = 0.5), a known `offset`, ridge penalty (`l2`), step halving, and sum-to-zero or `reference` item identification.
+  - **New**: Added `pairs_from_counts` helper to turn aggregated win/loss tables into weighted long format.
+  - **New**: `BradleyTerry.fisher_information()` returns the labelled expected or empirical information matrix (a weighted graph Laplacian over the comparison graph); `summary_frame()` and `rank()` return DataFrame summaries.
+  - **Validated**: Estimates, standard errors and information matrices checked against R's `BradleyTerry2::BTm` and `glm` on the 1987 AL East baseball data (`tests/data/`), and against `choix` when installed.
+
 - **v2.0.6**
   - **New**: Added `DivergenceClassifier` class — maximizes FICO divergence via quadratic programming, following Hoadley (2000). Supports unconstrained (analytical Fisher LDA) and constrained (score engineering) modes with weight-of-evidence rescaling.
   - **New**: Switched build system from setuptools to hatchling with dynamic versioning.

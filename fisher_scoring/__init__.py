@@ -1,5 +1,6 @@
 import logging
 
+from .fisher_scoring_bradley_terry import BradleyTerry, pairs_from_counts
 from .fisher_scoring_divergence import DivergenceClassifier
 from .fisher_scoring_focal import FocalLossRegression
 from .fisher_scoring_logistic import LogisticRegression
@@ -38,13 +39,15 @@ class FisherScoringFocalRegression(FocalLossRegression):
 
 
 __all__ = [
+    "BradleyTerry",
     "DivergenceClassifier",
+    "FocalLossRegression",
     "LogisticRegression",
     "MultinomialLogisticRegression",
-    "FocalLossRegression",
-    "PoissonRegression",
     "NegativeBinomialRegression",
+    "PoissonRegression",
     "RobustLogisticRegression",
+    "pairs_from_counts",
 ]
 
-__version__ = "2.0.6"
+__version__ = "2.0.7"

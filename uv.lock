@@ -467,6 +467,42 @@ wheels = [
 ]
 
 [[package]]
+name = "choix"
+version = "0.3.6"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+dependencies = [
+    { name = "numpy", marker = "python_full_version < '3.10'" },
+    { name = "scipy", version = "1.13.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/78/7d/7c167af8bcecb10d931172506f169c0425e23fb1961165fc7a94e7d15ff4/choix-0.3.6.tar.gz", hash = "sha256:08d50eef29d0a5a33aedcf6939783144ee141b736e4616ba2e0db835df8c81b2", size = 72563, upload-time = "2024-12-04T11:19:00.748Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/40/bc37a13e12f9cd3d9d07727b370401075ef919e0676db362f87fca98463f/choix-0.3.6-py3-none-any.whl", hash = "sha256:c6efa5059540816e01d36977b5e49096fae5fdb7438b6cf3b91a54a781fb53a7", size = 18675, upload-time = "2024-12-04T11:18:59.191Z" },
+]
+
+[[package]]
+name = "choix"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version == '3.14.*'",
+    "python_full_version >= '3.12' and python_full_version < '3.14'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+]
+dependencies = [
+    { name = "numpy", marker = "python_full_version >= '3.10'" },
+    { name = "scipy", version = "1.15.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/83/9c9b9aa651e16813ca893b70f4384f2e9c369eafd5922f4ddaf32cde2e9e/choix-0.4.1.tar.gz", hash = "sha256:7c85d13845400932508c45a6a6a3e7a44f637969ffd506e1c7f5db07de1560b4", size = 112425, upload-time = "2025-08-10T20:19:45.346Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/f1/8ce3fa2fe1649c93ab7e177c3b11b9fd98c66180af3a365cfe7bd0118806/choix-0.4.1-py3-none-any.whl", hash = "sha256:15fe145ffc194dc6b4ba5a44ef24667fa0107578fb5b36723ab0b5e87eeae29f", size = 20575, upload-time = "2025-08-10T20:19:44.255Z" },
+]
+
+[[package]]
 name = "click"
 version = "8.1.8"
 source = { registry = "https://pypi.org/simple" }
@@ -769,6 +805,8 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "black" },
+    { name = "choix", version = "0.3.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "choix", version = "0.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "docformatter" },
     { name = "fixit" },
     { name = "isort" },
@@ -800,6 +838,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "black", specifier = ">=24.4.2,<25.0.0" },
+    { name = "choix", specifier = ">=0.3.6" },
     { name = "docformatter", specifier = ">=1.7.5,<2.0.0" },
     { name = "fixit", specifier = ">=2.1.0,<3.0.0" },
     { name = "isort", specifier = ">=5.13.2,<6.0.0" },
