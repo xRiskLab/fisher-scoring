@@ -71,6 +71,10 @@ include = [
 [tool.uv]
 default-groups = ["dev"]
 
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+
 [tool.black]
 line-length = 88
 
@@ -82,7 +86,16 @@ line_length = 88
 pythonpath = ["."]
 
 [tool.pylint.'MESSAGES CONTROL']
-disable = ["C0413", "C0103", "E0213"]
+disable = [
+    "C0413",
+    "C0103",
+    "E0213",
+    # sklearn-style estimators take every setting in __init__ and store fitted state
+    "R0902",  # too-many-instance-attributes
+    "R0913",  # too-many-arguments
+    "R0917",  # too-many-positional-arguments
+    "R0914",  # too-many-locals
+]
 
 [tool.mypy]
 python_version = "3.9"

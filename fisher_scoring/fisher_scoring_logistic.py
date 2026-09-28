@@ -110,9 +110,7 @@ class LogisticRegression(ClassifierMixin, BaseEstimator):
         return float(np.sum(xlogy(y, p) + xlogy(1 - y, 1 - p)))
 
     @staticmethod
-    def invert_matrix(
-        matrix: np.ndarray, cond_threshold: float = 1e12
-    ) -> np.ndarray:
+    def invert_matrix(matrix: np.ndarray, cond_threshold: float = 1e12) -> np.ndarray:
         """
         Invert a matrix, falling back to the pseudo-inverse
         if the matrix is singular or near-singular.

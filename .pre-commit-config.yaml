@@ -3,28 +3,31 @@ repos:
     rev: 0.6.11
     hooks:
       - id: uv-lock
-      - id: uv-export
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]  # keep Markdown hard line breaks
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.13.1
+    rev: v0.13.0  # keep in sync with ruff in uv.lock
     hooks:
       - id: ruff-check
-        args: [--fix]
+        args: [--fix, --target-version=py39]
       - id: ruff-format
+        args: [--target-version=py39]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+  # Run mypy from the project environment (same versions and config as CI).
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [pandas-stubs]
-        args: [--check-untyped-defs]
+        name: mypy
+        entry: uv run mypy fisher_scoring/
+        language: system
+        pass_filenames: false
         files: ^fisher_scoring/

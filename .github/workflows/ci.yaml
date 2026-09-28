@@ -15,17 +15,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v1
       with:
         version: "latest"
-    
+
     - name: Cache uv
       uses: actions/cache@v3
       with:
@@ -34,16 +34,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-uv-${{ matrix.python-version }}-
           ${{ runner.os }}-uv-
-    
+
     - name: Install dependencies
       run: |
         uv sync --dev
         uv pip install -e .
-    
+
     - name: Run tests
       run: |
         uv run python -m pytest tests/ -v --tb=short
-    
+
     # Coverage reporting disabled until pytest-cov is added to dependencies
     # - name: Upload coverage to Codecov
     #   if: matrix.python-version == '3.11'
@@ -57,29 +57,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v1
       with:
         version: "latest"
-    
+
     - name: Install dependencies
       run: |
         uv sync --dev
         uv pip install -e .
-    
+
     - name: Run ruff
       run: |
-        uv run ruff check fisher_scoring/ tests/
+        uv run ruff check --target-version py39 fisher_scoring/ tests/
 
     - name: Run ruff format check
       run: |
-        uv run ruff format --check fisher_scoring/ tests/
+        uv run ruff format --check --target-version py39 fisher_scoring/ tests/
 
   type-check:
     runs-on: ubuntu-latest
