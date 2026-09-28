@@ -162,6 +162,7 @@ class BradleyTerry(BaseEstimator):
         self.lower_bound: Optional[np.ndarray] = None
         self.upper_bound: Optional[np.ndarray] = None
         self.n_iter_: int = 0
+        self.log_likelihood_: Optional[float] = None
         self.n_comparisons_: int = 0
         self.is_fitted_: bool = False
         self._item_features: Optional[pd.DataFrame] = None
@@ -420,6 +421,9 @@ class BradleyTerry(BaseEstimator):
 
         self._fit_data = (D, y_arr, w)
         self._fit_offset = off
+        # Evaluate at the returned coefficients: loss_history and information_matrix
+        # hold the values at the start of each iteration, before its update.
+        self.log_likelihood_ = self._penalized_loss(D, y_arr, w, off, self.beta)
         self.compute_statistics()
         self.fisher_information_ = self.fisher_information()
         self.is_fitted_ = True
@@ -552,10 +556,12 @@ class BradleyTerry(BaseEstimator):
         return T
 
     def compute_statistics(self) -> None:
-        """Compute standard errors, Wald statistics, p-values and CIs."""
+        """Compute standard errors, Wald statistics, p-values and CIs.
+
+        Uses the (penalized) information at the fitted coefficients.
+        """
         assert self.beta is not None
-        info = self.information_matrix["information"][-1]
-        assert isinstance(info, np.ndarray)
+        info = self.fisher_information(penalized=True).to_numpy()
         n_ab = self._n_ability_params
         cov_internal = self.invert_matrix(self._augment(info, n_ab))
 
@@ -842,7 +848,7 @@ class BradleyTerry(BaseEstimator):
             identification = "abilities = item_features @ gamma"
         n_items = len(self.items_)
         summary_stats = f"""Total Fisher Scoring Iterations: [{style}]{self.n_iter_}[/{style}]
-        Log Likelihood: [{style}]{self.loss_history[-1]:.4f}[/{style}]
+        Log Likelihood: [{style}]{self.log_likelihood_:.4f}[/{style}]
         Comparisons / Items: [{style}]{self.n_comparisons_} / {n_items}[/{style}]
         Identification: [{style}]{identification}[/{style}]
         Order effect (bias): [{style}]{self.use_bias}[/{style}]

@@ -268,6 +268,8 @@ model.display_summary()
 
 ### Visualization
 
+Plotting needs matplotlib, available as an optional extra: `pip install "fisher-scoring[plot]"`.
+
 The package includes a utility function for visualizing observed vs predicted probabilities for count data, which can be useful for users working with Poisson and Negative Binomial models.
 
 **Function:**

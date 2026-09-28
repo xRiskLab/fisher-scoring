@@ -1,6 +1,8 @@
 # Changelog
 
 - **v2.0.7**
+  - **Fixed**: `rich` and `scipy` are now declared runtime dependencies. Previously `import fisher_scoring` failed after a plain `pip install` with `No module named 'rich'`. matplotlib moved to an optional extra, `pip install "fisher-scoring[plot]"`, needed only for `utils.plot_observed_vs_predicted`.
+  - **Fixed**: `BradleyTerry` and `MultinomialLogisticRegression` compute standard errors and the reported log-likelihood (`log_likelihood_`) at the returned coefficients rather than at the previous iterate, which mattered when a fit stopped at `max_iter`.
   - **New**: Added `BradleyTerry` class for paired comparisons fitted with Fisher scoring. Supports an order effect / home advantage (`use_bias`), comparison-level covariates, item-level covariates (`item_features`), frequency weights, ties (y = 0.5), a known `offset`, ridge penalty (`l2`), step halving, and sum-to-zero or `reference` item identification.
   - **New**: `BradleyTerry` follows the scikit-learn layout: `fit(X, y, sample_weight=...)` where each row of `X` is `(item1, item2, *covariates)`, and `score` is the mean log-likelihood, so it works with `train_test_split`, `cross_val_score` and `GridSearchCV`.
   - **New**: Added `pairs_from_counts` helper to turn aggregated win/loss tables into `(X, y, sample_weight)`.

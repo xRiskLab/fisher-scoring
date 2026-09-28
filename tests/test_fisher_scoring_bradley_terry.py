@@ -197,7 +197,7 @@ class TestBradleyTerry(unittest.TestCase):
             deviance = 2 * np.sum(
                 xlogy(k, k / (n * p_home)) + xlogy(n - k, (n - k) / (n * (1 - p_home)))
             )
-            loglik = model.loss_history[-1] + np.sum(
+            loglik = model.log_likelihood_ + np.sum(
                 gammaln(n + 1) - gammaln(k + 1) - gammaln(n - k + 1)
             )
             n_params = len(model.beta) - 1  # one ability is fixed by identification
@@ -632,6 +632,23 @@ class TestBradleyTerry(unittest.TestCase):
         self.assertEqual(len(self.model.loss_history), first)
         self.assertEqual(len(self.model.information_matrix["information"]), first)
         self.assertEqual(self.model.max_iter, 100)
+
+    def test_statistics_use_final_coefficients(self):
+        """Test that SEs and log-likelihood refer to the returned coefficients.
+
+        Stopping early (max_iter=2) leaves a non-negligible last step, so values
+        taken before that step would not match.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = BradleyTerry(max_iter=2).fit(self.X, self.y, sample_weight=self.w)
+        info = model.fisher_information().to_numpy()
+        np.testing.assert_allclose(model.covariance_, np.linalg.pinv(info), atol=1e-10)
+        stale = model.information_matrix["information"][-1]
+        self.assertFalse(np.allclose(info, stale))
+        D, y, w = model._fit_data
+        p = model.logistic_function(D @ model.beta)
+        self.assertAlmostEqual(model.log_likelihood_, model.compute_loss(y, p, w))
 
     def test_max_iter_warns_without_convergence(self):
         """Test that hitting max_iter emits a warning."""

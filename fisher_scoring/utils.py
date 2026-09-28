@@ -7,16 +7,18 @@ A function to plot observed vs predicted probabilities for count data.
 Source: J. Hilbe. Modeling Count Data. Cambridge University Press, 2014.
 """
 
-from typing import Optional
+from __future__ import annotations
 
-import matplotlib.pyplot as plt
+from typing import TYPE_CHECKING, Optional
+
 import numpy as np
 import pandas as pd
-from matplotlib.axes import Axes
-from matplotlib.ticker import MaxNLocator
 from scipy.special import gammaln
 
 from ._typing import VectorLike
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 
 def plot_observed_vs_predicted(
@@ -47,6 +49,15 @@ def plot_observed_vs_predicted(
     - pd.DataFrame with observed and predicted frequencies and probabilities per
       count. The chart is drawn on the provided axis or the current one.
     """
+    try:
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import MaxNLocator
+    except ImportError as err:
+        raise ImportError(
+            "plot_observed_vs_predicted requires matplotlib. "
+            "Install it with: pip install 'fisher-scoring[plot]'"
+        ) from err
+
     y = np.asarray(y, dtype=np.float64)
     mu = np.asarray(mu, dtype=np.float64)
     counts = np.arange(0, max_count + 1)

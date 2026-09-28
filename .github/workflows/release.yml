@@ -60,6 +60,12 @@ jobs:
       run: |
         uv tool run --from build pyproject-build
 
+    - name: Check the wheel installs and imports in a clean environment
+      run: |
+        uv venv /tmp/clean --python 3.11
+        VIRTUAL_ENV=/tmp/clean uv pip install dist/*.whl
+        cd /tmp && /tmp/clean/bin/python -c "import fisher_scoring as fs; print(fs.__version__, fs.__file__)"
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:

@@ -43,7 +43,7 @@ Dan Jurafsky and James H. Martin. Speech and Language Processing, 2024.
 from __future__ import annotations
 
 import warnings
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -91,6 +91,8 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         self.statistics: Dict[str, Dict[str, np.ndarray]] = {}
         self.covariance_: Optional[np.ndarray] = None
         self.n_iter_: int = 0
+        self.log_likelihood_: Optional[float] = None
+        self._fit_data: Optional[Tuple[np.ndarray, np.ndarray]] = None
 
     @staticmethod
     def softmax_function(z: np.ndarray) -> np.ndarray:
@@ -261,6 +263,7 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
                 "Maximum iterations reached without convergence.", stacklevel=2
             )
 
+        self._fit_data = (X, y_one_hot)
         self.compute_statistics()
         self.is_fitted_ = True
         return self
@@ -284,10 +287,14 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
         """
         Compute the standard errors, Wald statistic, p-values, and confidence intervals for each class.
         """
-        assert self.beta is not None
+        assert self.beta is not None and self._fit_data is not None
         n_features, n_classes = self.beta.shape
-        info = self.information_matrix["information"][-1]  # Information at the MLE
-        assert isinstance(info, np.ndarray)
+        # Evaluate at the returned coefficients: loss_history and information_matrix
+        # hold the values at the start of each iteration, before its update.
+        X, y_one_hot = self._fit_data
+        p = self.softmax_function(X @ self.beta)
+        self.log_likelihood_ = self.compute_loss(y_one_hot, p)
+        info = self.compute_information_matrix(X, y_one_hot, p, self.information)
         self.covariance_ = self._constrained_inverse(info)
         variances = np.clip(np.diagonal(self.covariance_), 0.0, None)
         critical_value = norm.ppf(1 - self.significance / 2)
@@ -358,7 +365,7 @@ class MultinomialLogisticRegression(ClassifierMixin, BaseEstimator):
 
         summary_stats = f"""
         Total Fisher Scoring Iterations: [{style}]{total_iterations}[/{style}]
-        Log Likelihood: [{style}]{self.loss_history[-1]:.4f}[/{style}]
+        Log Likelihood: [{style}]{self.log_likelihood_:.4f}[/{style}]
         Beta 0 = intercept (bias): [{style}]{self.use_bias}[/{style}]
         """
 

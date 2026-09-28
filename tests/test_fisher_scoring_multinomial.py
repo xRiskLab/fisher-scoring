@@ -193,8 +193,30 @@ class TestMultinomialLogisticRegression(unittest.TestCase):
         """Test that the covariance is the pseudo-inverse of the information."""
         X, y = _simulate(500)
         model = MultinomialLogisticRegression().fit(X, y)
-        info = model.information_matrix["information"][-1]
+        X_design = np.column_stack([np.ones(len(X)), X])
+        info = model.compute_information_matrix(
+            X_design, np.eye(3)[y], model.predict_proba(X), "expected"
+        )
         np.testing.assert_allclose(model.covariance_, np.linalg.pinv(info), atol=1e-10)
+
+    def test_statistics_use_final_coefficients(self):
+        """Test that SEs and log-likelihood refer to the returned coefficients.
+
+        Stopping early (max_iter=2) leaves a non-negligible last step, so values
+        taken before that step would not match.
+        """
+        X, y = _simulate(500)
+        with self.assertWarns(UserWarning):
+            model = MultinomialLogisticRegression(max_iter=2).fit(X, y)
+        X_design = np.column_stack([np.ones(len(X)), X])
+        p = model.predict_proba(X)
+        info = model.compute_information_matrix(X_design, np.eye(3)[y], p, "expected")
+        np.testing.assert_allclose(model.covariance_, np.linalg.pinv(info), atol=1e-10)
+        stale = model.information_matrix["information"][-1]
+        self.assertFalse(np.allclose(info, stale))
+        self.assertAlmostEqual(
+            model.log_likelihood_, model.compute_loss(np.eye(3)[y], p)
+        )
 
     def test_information_matrices_match_definitions(self):
         """Test expected and empirical information against a per-row sum."""

@@ -799,7 +799,16 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
+    { name = "rich" },
     { name = "scikit-learn" },
+    { name = "scipy", version = "1.13.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "scipy", version = "1.15.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+
+[package.optional-dependencies]
+plot = [
+    { name = "matplotlib", version = "3.9.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "matplotlib", version = "3.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
 [package.dev-dependencies]
@@ -822,7 +831,6 @@ dev = [
     { name = "pylint" },
     { name = "pytest" },
     { name = "pytest-mock" },
-    { name = "rich" },
     { name = "ruff" },
     { name = "scikit-learn-stubs" },
     { name = "statsmodels" },
@@ -830,10 +838,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.0.0" },
     { name = "numpy", specifier = ">=1.19.5,<2.0.0" },
     { name = "pandas", specifier = ">=2.2.2,<3.0.0" },
+    { name = "rich", specifier = ">=13.7.1" },
     { name = "scikit-learn", specifier = ">=1.3.0,<2.0.0" },
+    { name = "scipy", specifier = ">=1.9.0" },
 ]
+provides-extras = ["plot"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -850,7 +862,6 @@ dev = [
     { name = "pylint", specifier = ">=3.2.6,<4.0.0" },
     { name = "pytest", specifier = ">=8.3.2,<9.0.0" },
     { name = "pytest-mock", specifier = ">=3.14.0,<4.0.0" },
-    { name = "rich", specifier = ">=13.7.1,<14.0.0" },
     { name = "ruff", specifier = ">=0.1.0,<1.0.0" },
     { name = "scikit-learn-stubs", specifier = ">=0.0.3" },
     { name = "statsmodels", specifier = ">=0.14.6" },
